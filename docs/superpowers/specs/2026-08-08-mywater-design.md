@@ -104,10 +104,10 @@ Run once before first deploy, and again only if underlying parcel data changes:
 
 ## Testing / Verification
 
-Scoped proportionately to a small community project, not a commercial product:
-- Precompute script: verify cluster sizes (roughly 6-10 parcels each) and that every parcel in the service area is assigned before loading into the database.
-- Manual end-to-end pass before launch: submit both report types, obscured and non-obscured, with and without photos; confirm rate limiting triggers past the threshold; confirm the timeline scrubber filters markers correctly.
-- No automated test suite planned for v1.
+Split by stakes: automated tests where correctness is load-bearing (privacy guarantee, abuse mitigation), manual checks where it's visual/low-stakes.
+
+- **Automated tests**: precompute clustering (cluster sizes land in 6-10, every parcel assigned to exactly one cluster, unmatched parcels are logged not dropped), the `parcel_id`/`cluster_id` mutual-exclusivity invariant on `reports`, and rate-limit threshold logic in `submission_log` queries.
+- **Manual verification**: map/timeline UI, HTMX partial swaps, end-to-end pass before launch — submit both report types, obscured and non-obscured, with and without photos; confirm rate limiting triggers past the threshold in the running app; confirm the timeline scrubber filters markers correctly.
 
 ## Deployment
 
