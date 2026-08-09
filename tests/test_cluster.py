@@ -52,6 +52,17 @@ def test_match_roadway_returns_none_when_no_match():
     assert match_roadway("MAIN ST", roadways) is None
 
 
+def test_match_roadway_returns_none_for_disjoint_same_named_segments():
+    # Regression test: disjoint segments of same street name should return None
+    # to avoid silently producing wrong geography via MultiLineString projection
+    roadways = [
+        {"roadname": "Main St", "geometry": LineString([(0, 0), (2, 0)])},
+        {"roadname": "Main St", "geometry": LineString([(100, 0), (102, 0)])},
+    ]
+    result = match_roadway("MAIN ST", roadways)
+    assert result is None
+
+
 def test_order_parcels_along_street_orders_by_projected_distance():
     line = LineString([(0, 0), (10, 0)])
     parcels = [
@@ -142,3 +153,28 @@ def test_cluster_parcels_by_street_does_not_flag_target_sized_cluster():
     clusters, excluded, outlier_indices = cluster_parcels_by_street(parcels, roadways)
     assert len(clusters) == 1
     assert outlier_indices == []
+
+
+def test_cluster_parcels_by_street_handles_disjoint_segments_via_fallback():
+    # Regression test: when roadway segments are disjoint (don't merge),
+    # cluster_parcels_by_street should still cluster correctly using fallback
+    # path (situsnum ordering, union centroid) instead of broken MultiLineString projection
+    disjoint_roadways = [
+        {"roadname": "Split St", "geometry": LineString([(0, 0), (2, 0)])},
+        {"roadname": "Split St", "geometry": LineString([(100, 0), (102, 0)])},
+    ]
+    parcels = [
+        {
+            "apn": f"P{i}",
+            "situsstr": "Split St",
+            "situsnum": str(100 + i),
+            "geometry": _square(i, 0.1),
+        }
+        for i in range(8)
+    ]
+    clusters, excluded, outlier_indices = cluster_parcels_by_street(parcels, disjoint_roadways)
+    # Should still produce one cluster via situsnum fallback ordering
+    assert len(clusters) == 1
+    assert clusters[0]["parcel_count"] == 8
+    # Centroid should be computed via union centroid (not broken street midpoint)
+    assert clusters[0]["centroid_lng"] == pytest.approx(3.5, abs=0.01)

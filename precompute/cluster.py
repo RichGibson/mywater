@@ -31,7 +31,13 @@ def match_roadway(street_name, roadways):
     union = unary_union(matches)
     if union.geom_type == "LineString":
         return union
-    return linemerge(union)
+    merged = linemerge(union)
+    # Detect disjoint segments: if merged result is MultiLineString (segments didn't merge),
+    # return None to use fallback path (situsnum ordering, union centroid) instead of
+    # silently producing wrong geography via incorrect projection/interpolation on MultiLineString
+    if merged.geom_type == "MultiLineString":
+        return None
+    return merged
 
 
 def order_parcels_along_street(parcels, roadway_line):
