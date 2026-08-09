@@ -25,9 +25,16 @@ def _query_all_features(layer_url, where, out_fields):
             raise RuntimeError(f"ArcGIS query error: {data['error']}")
         page_features = data.get("features", [])
         features.extend(page_features)
-        if len(page_features) < PAGE_SIZE:
+        # Use exceededTransferLimit as primary signal (per Esri documentation).
+        # If true, continue paging regardless of page size.
+        # If false/absent, stop — but check page size as fallback for older servers that omit the flag.
+        exceeded = data.get("exceededTransferLimit")
+        if exceeded:
+            offset += PAGE_SIZE
+        elif len(page_features) < PAGE_SIZE:
             break
-        offset += PAGE_SIZE
+        else:
+            offset += PAGE_SIZE
     return features
 
 
