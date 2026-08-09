@@ -67,3 +67,32 @@ def test_load_clusters_and_parcels_round_trip(conn):
 
     parcel_rows = conn.execute("SELECT apn, cluster_id FROM parcels ORDER BY apn").fetchall()
     assert parcel_rows == [("A", 1), ("B", 1)]
+
+    # Verify geometry types
+    cluster_geom_type = conn.execute(
+        "SELECT GeometryType(geometry) FROM parcel_clusters WHERE id = 1"
+    ).fetchone()[0]
+    assert cluster_geom_type == "MULTIPOLYGON"
+
+    parcel_a_geom_type = conn.execute(
+        "SELECT GeometryType(geometry) FROM parcels WHERE apn = 'A'"
+    ).fetchone()[0]
+    assert parcel_a_geom_type == "MULTIPOLYGON"
+
+    parcel_b_geom_type = conn.execute(
+        "SELECT GeometryType(geometry) FROM parcels WHERE apn = 'B'"
+    ).fetchone()[0]
+    assert parcel_b_geom_type == "MULTIPOLYGON"
+
+    # Verify centroid values
+    parcel_a_lat, parcel_a_lng = conn.execute(
+        "SELECT centroid_lat, centroid_lng FROM parcels WHERE apn = 'A'"
+    ).fetchone()
+    assert parcel_a_lat == pytest.approx(0.0, abs=0.01)
+    assert parcel_a_lng == pytest.approx(1.0, abs=0.01)
+
+    parcel_b_lat, parcel_b_lng = conn.execute(
+        "SELECT centroid_lat, centroid_lng FROM parcels WHERE apn = 'B'"
+    ).fetchone()
+    assert parcel_b_lat == pytest.approx(0.0, abs=0.01)
+    assert parcel_b_lng == pytest.approx(3.0, abs=0.01)
