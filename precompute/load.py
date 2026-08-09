@@ -1,5 +1,7 @@
 import sqlite3
 
+from shapely.geometry import MultiPolygon
+
 _EXTENSION_CANDIDATES = [
     "mod_spatialite",
     "mod_spatialite.dylib",
@@ -38,4 +40,47 @@ def connect(db_path):
 def init_schema(conn, schema_path):
     with open(schema_path) as f:
         conn.executescript(f.read())
+    conn.commit()
+
+
+def _to_multipolygon_wkt(geom):
+    if geom.geom_type == "Polygon":
+        geom = MultiPolygon([geom])
+    return geom.wkt
+
+
+def load_clusters_and_parcels(conn, clusters):
+    cur = conn.cursor()
+    for cluster in clusters:
+        cur.execute(
+            """
+            INSERT INTO parcel_clusters (street_name, centroid_lat, centroid_lng, parcel_count, geometry)
+            VALUES (?, ?, ?, ?, ST_GeomFromText(?, 4326))
+            """,
+            (
+                cluster["street_name"],
+                cluster["centroid_lat"],
+                cluster["centroid_lng"],
+                cluster["parcel_count"],
+                _to_multipolygon_wkt(cluster["geometry"]),
+            ),
+        )
+        cluster_id = cur.lastrowid
+        for parcel in cluster["members"]:
+            centroid = parcel["geometry"].centroid
+            cur.execute(
+                """
+                INSERT INTO parcels (apn, situsstr, situsnum, cluster_id, centroid_lat, centroid_lng, geometry)
+                VALUES (?, ?, ?, ?, ?, ?, ST_GeomFromText(?, 4326))
+                """,
+                (
+                    parcel["apn"],
+                    parcel["situsstr"],
+                    parcel["situsnum"],
+                    cluster_id,
+                    centroid.y,
+                    centroid.x,
+                    _to_multipolygon_wkt(parcel["geometry"]),
+                ),
+            )
     conn.commit()
