@@ -45,6 +45,11 @@ def fetch_parcels(community_name, base_url=PARCELS_MAPSERVER_URL):
     for feat in features:
         props = feat["properties"]
         geom = shape(feat["geometry"]) if feat.get("geometry") else None
+        if geom is not None and not geom.is_valid:
+            # Real-world county parcel data occasionally has minor self-intersections
+            # (e.g. digitizing artifacts). buffer(0) is the standard Shapely/GEOS idiom
+            # to repair these without materially changing the polygon's shape.
+            geom = geom.buffer(0)
         records.append(
             {
                 "apn": props.get("APN"),
