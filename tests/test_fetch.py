@@ -35,12 +35,13 @@ def test_fetch_parcels_parses_single_page():
     coords = [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]
     page = [_feature("APN1", "MAIN ST", "100", "CLEARLAKE OAKS", coords)]
     with patch("precompute.fetch.requests.get", return_value=_geojson_response(page)) as mock_get:
-        result = fetch_parcels("CLEARLAKE OAKS")
+        result, repaired_apns = fetch_parcels("CLEARLAKE OAKS")
 
     assert len(result) == 1
     assert result[0]["apn"] == "APN1"
     assert result[0]["situsstr"] == "MAIN ST"
     assert result[0]["geometry"] is not None
+    assert repaired_apns == []
     mock_get.assert_called_once()
     called_params = mock_get.call_args.kwargs["params"]
     assert called_params["where"] == "SITUSFULL LIKE '%CLEARLAKE OAKS%'"
@@ -55,9 +56,10 @@ def test_fetch_parcels_paginates_full_pages():
     partial_page = [_feature("APN_LAST", "MAIN ST", "9999", "CLEARLAKE OAKS", coords)]
     responses = [_geojson_response(full_page), _geojson_response(partial_page)]
     with patch("precompute.fetch.requests.get", side_effect=responses) as mock_get:
-        result = fetch_parcels("CLEARLAKE OAKS")
+        result, repaired_apns = fetch_parcels("CLEARLAKE OAKS")
 
     assert len(result) == 1001
+    assert repaired_apns == []
     assert mock_get.call_count == 2
     second_call_params = mock_get.call_args_list[1].kwargs["params"]
     assert second_call_params["resultOffset"] == 1000
@@ -82,9 +84,10 @@ def test_fetch_parcels_continues_on_exceeded_transfer_limit():
         _geojson_response(partial_page_2, exceeded_transfer_limit=False),
     ]
     with patch("precompute.fetch.requests.get", side_effect=responses) as mock_get:
-        result = fetch_parcels("CLEARLAKE OAKS")
+        result, repaired_apns = fetch_parcels("CLEARLAKE OAKS")
 
     assert len(result) == 600
+    assert repaired_apns == []
     assert mock_get.call_count == 2
     second_call_params = mock_get.call_args_list[1].kwargs["params"]
     assert second_call_params["resultOffset"] == 1000
@@ -115,3 +118,40 @@ def test_fetch_parcels_raises_on_arcgis_error_payload():
     ):
         with pytest.raises(RuntimeError, match="ArcGIS query error"):
             fetch_parcels("CLEARLAKE OAKS")
+
+
+def test_fetch_parcels_repairs_invalid_geometry_and_reports_apn():
+    """Real Lake County data occasionally has self-intersecting ('bowtie') parcel polygons
+    (digitizing artifacts). fetch_parcels must repair these via buffer(0) so downstream
+    clustering (shapely unary_union) doesn't crash with a TopologyException, and must report
+    which APNs were repaired so an operator can see what was altered before it's written to
+    the database (mirrors the excluded-parcels visibility precompute/run.py already provides).
+    """
+    from precompute.fetch import fetch_parcels
+
+    # Classic bowtie/hourglass self-intersecting polygon: shapely reports .is_valid == False.
+    bowtie_coords = [[0, 0], [1, 1], [1, 0], [0, 1], [0, 0]]
+    page = [_feature("APN_BOWTIE", "MAIN ST", "100", "CLEARLAKE OAKS", bowtie_coords)]
+    with patch("precompute.fetch.requests.get", return_value=_geojson_response(page)):
+        result, repaired_apns = fetch_parcels("CLEARLAKE OAKS")
+
+    assert len(result) == 1
+    assert result[0]["geometry"].is_valid is True
+    assert repaired_apns == ["APN_BOWTIE"]
+
+
+def test_fetch_parcels_leaves_valid_geometry_unchanged():
+    """Confirms the buffer(0) repair path is a no-op for already-valid geometry: the polygon
+    passes through essentially unchanged, and no APN is reported as repaired.
+    """
+    from shapely.geometry import Polygon
+
+    from precompute.fetch import fetch_parcels
+
+    coords = [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]
+    page = [_feature("APN_VALID", "MAIN ST", "100", "CLEARLAKE OAKS", coords)]
+    with patch("precompute.fetch.requests.get", return_value=_geojson_response(page)):
+        result, repaired_apns = fetch_parcels("CLEARLAKE OAKS")
+
+    assert result[0]["geometry"].equals(Polygon(coords))
+    assert repaired_apns == []

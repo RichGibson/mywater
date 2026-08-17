@@ -12,8 +12,11 @@ COMMUNITY_NAME = "CLEARLAKE OAKS"
 
 def main(db_path=DEFAULT_DB_PATH):
     print(f"Fetching parcels for community '{COMMUNITY_NAME}'...")
-    parcels = fetch_parcels(COMMUNITY_NAME)
+    parcels, repaired_apns = fetch_parcels(COMMUNITY_NAME)
     print(f"Fetched {len(parcels)} parcels.")
+
+    if repaired_apns:
+        print(f"WARNING: repaired {len(repaired_apns)} parcels with invalid geometry: {repaired_apns}")
 
     print("Fetching roadway centerlines...")
     roadways = fetch_roadways()

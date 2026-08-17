@@ -42,24 +42,27 @@ def fetch_parcels(community_name, base_url=PARCELS_MAPSERVER_URL):
     where = f"SITUSFULL LIKE '%{community_name}%'"
     features = _query_all_features(f"{base_url}/0", where, "APN,SITUSSTR,SITUSNUM,SITUSFULL")
     records = []
+    repaired_apns = []
     for feat in features:
         props = feat["properties"]
+        apn = props.get("APN")
         geom = shape(feat["geometry"]) if feat.get("geometry") else None
         if geom is not None and not geom.is_valid:
             # Real-world county parcel data occasionally has minor self-intersections
             # (e.g. digitizing artifacts). buffer(0) is the standard Shapely/GEOS idiom
             # to repair these without materially changing the polygon's shape.
             geom = geom.buffer(0)
+            repaired_apns.append(apn)
         records.append(
             {
-                "apn": props.get("APN"),
+                "apn": apn,
                 "situsstr": (props.get("SITUSSTR") or "").strip(),
                 "situsnum": props.get("SITUSNUM"),
                 "situsfull": props.get("SITUSFULL"),
                 "geometry": geom,
             }
         )
-    return records
+    return records, repaired_apns
 
 
 def fetch_roadways(base_url=PARCELS_MAPSERVER_URL):
