@@ -37,6 +37,15 @@ def main(db_path=DEFAULT_DB_PATH):
             c = clusters[i]
             print(f"  - {c['street_name']}: {c['parcel_count']} parcels")
 
+    unsafe_clusters = [c for c in clusters if c["parcel_count"] < MIN_CLUSTER_SIZE]
+    if unsafe_clusters:
+        unsafe_pct = 100 * len(unsafe_clusters) / len(clusters) if clusters else 0
+        print(
+            f"WARNING: {len(unsafe_clusters)} clusters ({unsafe_pct:.1f}%) are below the "
+            f"{MIN_CLUSTER_SIZE}-parcel anonymization minimum and are NOT safe to offer as "
+            f"obscured-location targets"
+        )
+
     db_path = Path(db_path)
     if db_path.exists():
         db_path.unlink()

@@ -17,6 +17,23 @@ def bucket_parcels(ordered_parcels, target=TARGET_CLUSTER_SIZE, max_size=MAX_CLU
         else:
             clusters.append(ordered_parcels[i : i + target])
             i += target
+
+    # Rebalance an avoidable trailing remainder: if the last bucket is smaller
+    # than MIN_CLUSTER_SIZE but there's a preceding full-target bucket to borrow
+    # from, split the combined total of the last two buckets roughly evenly
+    # instead of leaving a tiny tail. A single short bucket is only left in
+    # place when the street itself is too small overall to avoid it (i.e.
+    # there's no preceding bucket to redistribute with).
+    if len(clusters) >= 2:
+        last = clusters[-1]
+        prev = clusters[-2]
+        remainder = len(last)
+        if 0 < remainder < MIN_CLUSTER_SIZE and len(prev) > MIN_CLUSTER_SIZE:
+            combined = prev + last
+            split = len(combined) // 2
+            clusters[-2] = combined[:split]
+            clusters[-1] = combined[split:]
+
     return clusters
 
 

@@ -56,16 +56,30 @@ def test_load_clusters_and_parcels_round_trip(conn):
                 {"apn": "A", "situsstr": "MAIN ST", "situsnum": "100", "geometry": _square(1, 0)},
                 {"apn": "B", "situsstr": "MAIN ST", "situsnum": "200", "geometry": _square(3, 0)},
             ],
-        }
+        },
+        {
+            "street_name": "OAK LN",
+            "geometry": _square(20, 0),
+            "centroid_lat": 0.0,
+            "centroid_lng": 20.0,
+            "parcel_count": 8,
+            "members": [
+                {"apn": f"C{i}", "situsstr": "OAK LN", "situsnum": str(100 + i), "geometry": _square(20 + i, 0)}
+                for i in range(8)
+            ],
+        },
     ]
     load_clusters_and_parcels(conn, clusters)
 
     cluster_rows = conn.execute(
-        "SELECT id, street_name, parcel_count FROM parcel_clusters"
+        "SELECT id, street_name, parcel_count, anonymization_safe FROM parcel_clusters ORDER BY id"
     ).fetchall()
-    assert cluster_rows == [(1, "MAIN ST", 2)]
+    # MAIN ST has 2 parcels (< MIN_CLUSTER_SIZE, unsafe); OAK LN has 8 (safe).
+    assert cluster_rows == [(1, "MAIN ST", 2, 0), (2, "OAK LN", 8, 1)]
 
-    parcel_rows = conn.execute("SELECT apn, cluster_id FROM parcels ORDER BY apn").fetchall()
+    parcel_rows = conn.execute(
+        "SELECT apn, cluster_id FROM parcels WHERE apn IN ('A', 'B') ORDER BY apn"
+    ).fetchall()
     assert parcel_rows == [("A", 1), ("B", 1)]
 
     # Verify geometry types

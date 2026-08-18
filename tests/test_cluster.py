@@ -2,6 +2,8 @@ import pytest
 from shapely.geometry import LineString, Polygon
 
 from precompute.cluster import (
+    MAX_CLUSTER_SIZE,
+    MIN_CLUSTER_SIZE,
     bucket_parcels,
     build_cluster_record,
     cluster_parcels_by_street,
@@ -28,15 +30,38 @@ def test_bucket_parcels_splits_evenly_sized_street_into_target_groups():
 
 
 def test_bucket_parcels_folds_small_remainder_into_last_bucket():
+    # Regression test for the anonymization-safety fix: a naive greedy chunker
+    # produces [8, 8, 4] here (a 4-parcel tail, which is below MIN_CLUSTER_SIZE
+    # and defeats the anonymization guarantee). The fix must rebalance the
+    # final two buckets so no avoidable bucket falls below MIN_CLUSTER_SIZE.
     parcels = [{"apn": str(i)} for i in range(20)]
     buckets = bucket_parcels(parcels, target=8, max_size=10)
-    assert [len(b) for b in buckets] == [8, 8, 4]
+    sizes = [len(b) for b in buckets]
+    assert sizes == [8, 6, 6]
+    assert all(MIN_CLUSTER_SIZE <= s <= MAX_CLUSTER_SIZE for s in sizes)
+    assert sum(sizes) == 20
+    # No parcel lost or duplicated across buckets.
+    all_apns = sorted(int(p["apn"]) for b in buckets for p in b)
+    assert all_apns == list(range(20))
 
 
 def test_bucket_parcels_keeps_single_bucket_when_under_max():
     parcels = [{"apn": str(i)} for i in range(9)]
     buckets = bucket_parcels(parcels, target=8, max_size=10)
     assert [len(b) for b in buckets] == [9]
+
+
+def test_bucket_parcels_rebalances_large_street_trailing_remainder():
+    # 204 parcels: 204 = 25*8 + 4, so a naive greedy chunker produces
+    # 25 buckets of 8 followed by a 4-parcel tail. Since the street is large
+    # enough to redistribute (there's a full preceding bucket to borrow from),
+    # no bucket should end up below MIN_CLUSTER_SIZE.
+    parcels = [{"apn": str(i)} for i in range(204)]
+    buckets = bucket_parcels(parcels, target=8, max_size=10)
+    sizes = [len(b) for b in buckets]
+    assert sum(sizes) == 204
+    assert all(MIN_CLUSTER_SIZE <= s <= MAX_CLUSTER_SIZE for s in sizes)
+    assert sizes[-2:] == [6, 6]
 
 
 def test_match_roadway_finds_case_insensitive_match():

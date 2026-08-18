@@ -2,6 +2,8 @@ import sqlite3
 
 from shapely.geometry import MultiPolygon
 
+from precompute.cluster import MIN_CLUSTER_SIZE
+
 _EXTENSION_CANDIDATES = [
     "mod_spatialite",
     "mod_spatialite.dylib",
@@ -53,16 +55,19 @@ def load_clusters_and_parcels(conn, clusters):
     with conn:
         cur = conn.cursor()
         for cluster in clusters:
+            anonymization_safe = 1 if cluster["parcel_count"] >= MIN_CLUSTER_SIZE else 0
             cur.execute(
                 """
-                INSERT INTO parcel_clusters (street_name, centroid_lat, centroid_lng, parcel_count, geometry)
-                VALUES (?, ?, ?, ?, ST_GeomFromText(?, 4326))
+                INSERT INTO parcel_clusters
+                    (street_name, centroid_lat, centroid_lng, parcel_count, anonymization_safe, geometry)
+                VALUES (?, ?, ?, ?, ?, ST_GeomFromText(?, 4326))
                 """,
                 (
                     cluster["street_name"],
                     cluster["centroid_lat"],
                     cluster["centroid_lng"],
                     cluster["parcel_count"],
+                    anonymization_safe,
                     _to_multipolygon_wkt(cluster["geometry"]),
                 ),
             )
