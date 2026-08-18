@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import pytest
-
 
 def test_init_app_db_creates_expected_tables(tmp_path):
     from db import init_app_db
@@ -52,9 +50,11 @@ def test_get_connection_attaches_parcels_db_read_access(tmp_path):
     assert {"parcels", "parcel_clusters"} <= attached_tables
 
 
-def test_health_check_returns_ok():
+def test_health_check_returns_ok(tmp_path, monkeypatch):
+    import db
     from fastapi.testclient import TestClient
 
+    monkeypatch.setattr(db, "DEFAULT_APP_DB_PATH", tmp_path / "mywater_app.db")
     from main import app
 
     with TestClient(app) as client:
