@@ -25,7 +25,8 @@ A public, map-based site for the Clearlake Oaks County Water District (CLOCWD) s
 Per the existing site-building playbook (`projects/websites-readme.md`, `projects/template-site/PLAYBOOK.md`), this is a **dynamic site** (needs a running server for reports/photos/timeline), following the same pattern as `megazoomquilt.com`.
 
 - **Backend**: FastAPI + Jinja2 + HTMX, following `projects/template-code` conventions.
-- **Database**: SQLite + SpatiaLite extension, single file on the Hetzner box. Chosen over PostGIS to avoid running a separate DB service; chosen over plain SQLite (no spatial extension) so spatial queries can be expressed directly in SQL if needed later, rather than only via an in-app index.
+- **Database**: SQLite + SpatiaLite extension, **two files** on the Hetzner box (revised 2026-08-18 — see note below): `mywater.db` (precompute-owned: `parcels`, `parcel_clusters`) and `mywater_app.db` (backend-owned: `reports`, `submission_log`). Chosen over PostGIS to avoid running a separate DB service; chosen over plain SQLite (no spatial extension) so spatial queries can be expressed directly in SQL if needed later, rather than only via an in-app index.
+- **Why two files, not one** (revised from the original single-file plan): the precompute pipeline's re-run behavior deletes and rebuilds its output file from scratch on every run (`db_path.unlink()`), by design — it's meant to be safely re-runnable whenever county parcel data changes. If `reports`/`submission_log` lived in that same file, a production re-run would delete every user report outright, not just orphan a foreign key. Splitting into two files makes precompute's destructive rebuild structurally incapable of touching backend data, with no operational discipline required. The backend `ATTACH`es `mywater.db` read-only when it needs to join a report to its parcel/cluster (e.g. building the map GeoJSON).
 - **Frontend map**: Leaflet.js + OSM tiles for the base map (streets, orientation); parcels, clusters, and report markers rendered as GeoJSON overlays on top.
 - **Parcel data source** (verified live 2026-08-08): Lake County CA's official ArcGIS service, `https://gis.lakecountyca.gov/server/rest/services/Parcels/MapServer`. Layer 0 (`Parcels`, polygons) has `APN` (unique ID), `SITUSSTR`/`SITUSNUM`/`SITUSFULL` (situs street name/number/city), `X`/`Y` (centroid, WGS84), and geometry (requestable reprojected to WGS84 via `outSR=4326`). Layer 1 (`Roadways`, polylines) has `ROADNAME` in the same coordinate system — used for street-frontage ordering instead of a separate OSM street layer, since names are guaranteed to match `SITUSSTR`. OSM tiles are still used for the visual base map.
 - **Service-area scoping** (revised from original plan): CLOCWD publishes its service-area boundary only as static PNG/JPEG images on clocwd.org, not as a downloadable vector file (confirmed 2026-08-08, no GeoJSON/KML/shapefile available anywhere). For v1, in-scope parcels are determined by filtering `SITUSFULL` for the Clearlake Oaks community name rather than clipping to an exact district polygon. This is an approximation — it may include a small number of parcels the water district doesn't technically serve, or miss edge parcels — acceptable for v1 given the alternative is manually digitizing the boundary from a raster image.
@@ -35,12 +36,17 @@ Per the existing site-building playbook (`projects/websites-readme.md`, `project
 
 ## Data Model
 
+`parcels` and `parcel_clusters` live in `mywater.db` (precompute-owned, read-only from the backend). `reports` and `submission_log` live in `mywater_app.db` (backend-owned; precompute never touches this file).
+
 ```
 parcels
   id, geometry, cluster_id (FK -> parcel_clusters), centroid_lat, centroid_lng
 
 parcel_clusters
   id, geometry, centroid_lat, centroid_lng, parcel_count
+  anonymization_safe   -- 1 if parcel_count >= MIN_CLUSTER_SIZE (6), else 0; clusters
+                        -- below the minimum must never be offered as an obscured-location
+                        -- target (added during precompute's final review, 2026-08-18)
 
 reports
   id, report_type            -- 'event' | 'quality'
@@ -114,7 +120,7 @@ Split by stakes: automated tests where correctness is load-bearing (privacy guar
 ## Deployment
 
 Per the existing playbook's dynamic-site pattern:
-- App + SQLite file run on the Hetzner instance as a systemd service.
+- App + both SQLite files (`mywater.db`, `mywater_app.db`) run on the Hetzner instance as a systemd service.
 - Cloudflare in front as CDN/SSL terminator.
 - Photos in Cloudflare R2, separate from the Hetzner disk.
 - Domain: deferred. Register at Porkbun and point nameservers to Cloudflare when ready to go live; not required for local build/test.
