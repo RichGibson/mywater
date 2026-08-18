@@ -17,6 +17,7 @@ def _query_all_features(layer_url, where, out_fields):
             "f": "geojson",
             "resultRecordCount": PAGE_SIZE,
             "resultOffset": offset,
+            "orderByFields": "OBJECTID",
         }
         resp = requests.get(f"{layer_url}/query", params=params, timeout=30)
         resp.raise_for_status()
