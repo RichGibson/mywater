@@ -49,6 +49,14 @@ def match_roadway(street_name, roadways):
     if union.geom_type == "LineString":
         return union
     merged = linemerge(union)
+    # Guard against all-None/empty geometry inputs: unary_union of an all-None
+    # (or otherwise degenerate) matches list can yield GEOMETRYCOLLECTION EMPTY,
+    # and linemerge of that is an empty GeometryCollection rather than a
+    # LineString/MultiLineString. Treat that the same as "no match found"
+    # rather than returning an empty geometry that crashes downstream
+    # (e.g. roadway_line.interpolate() in build_cluster_record).
+    if merged.is_empty:
+        return None
     # Detect disjoint segments: if merged result is MultiLineString (segments didn't merge),
     # return None to use fallback path (situsnum ordering, union centroid) instead of
     # silently producing wrong geography via incorrect projection/interpolation on MultiLineString

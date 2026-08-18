@@ -109,6 +109,34 @@ def test_fetch_roadways_parses_linestring_features():
     assert result[0]["geometry"].length == 10
 
 
+def test_fetch_roadways_drops_features_with_null_geometry():
+    # Regression test: roadway features with no geometry carry no usable
+    # information for clustering and previously flowed straight through into
+    # match_roadway, where an all-None matches list could produce an empty
+    # (rather than None) geometry and crash downstream. fetch_roadways must
+    # filter them out.
+    from precompute.fetch import fetch_roadways
+
+    good_feature = {
+        "type": "Feature",
+        "properties": {"ROADNAME": "MAIN ST"},
+        "geometry": {"type": "LineString", "coordinates": [[0, 0], [10, 0]]},
+    }
+    null_geom_feature = {
+        "type": "Feature",
+        "properties": {"ROADNAME": "NO GEOM ST"},
+        "geometry": None,
+    }
+    with patch(
+        "precompute.fetch.requests.get",
+        return_value=_geojson_response([good_feature, null_geom_feature]),
+    ):
+        result = fetch_roadways()
+
+    assert len(result) == 1
+    assert result[0]["roadname"] == "MAIN ST"
+
+
 def test_fetch_parcels_raises_on_arcgis_error_payload():
     from precompute.fetch import fetch_parcels
 
@@ -138,6 +166,33 @@ def test_fetch_parcels_repairs_invalid_geometry_and_reports_apn():
     assert len(result) == 1
     assert result[0]["geometry"].is_valid is True
     assert repaired_apns == ["APN_BOWTIE"]
+
+
+def test_fetch_parcels_treats_empty_buffer_repair_result_as_missing_geometry():
+    """A degenerate invalid ring (e.g. a zero-area self-intersecting/"bowtie"-like
+    ring collapsed to a line) can repair to POLYGON EMPTY via buffer(0). is_valid
+    is True for this but it's not usable geometry: e.g. .centroid on it raises
+    GEOSException downstream. fetch_parcels must treat this the same as a missing
+    geometry (geometry: None) so it flows into cluster.py's existing exclusion
+    path instead of crashing later.
+    """
+    from shapely.geometry import Polygon
+
+    from precompute.fetch import fetch_parcels
+
+    # Verify assumption directly before building the test around it: this
+    # degenerate ring collapses to an empty (but "valid") polygon after buffer(0).
+    degenerate_coords = [(0, 0), (1, 1), (2, 2), (0, 0)]
+    repaired = Polygon(degenerate_coords).buffer(0)
+    assert repaired.is_empty is True
+    assert repaired.is_valid is True
+
+    page = [_feature("APN_EMPTY", "MAIN ST", "100", "CLEARLAKE OAKS", degenerate_coords)]
+    with patch("precompute.fetch.requests.get", return_value=_geojson_response(page)):
+        result, repaired_apns = fetch_parcels("CLEARLAKE OAKS")
+
+    assert len(result) == 1
+    assert result[0]["geometry"] is None
 
 
 def test_fetch_parcels_leaves_valid_geometry_unchanged():

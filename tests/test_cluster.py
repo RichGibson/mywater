@@ -77,6 +77,22 @@ def test_match_roadway_returns_none_when_no_match():
     assert match_roadway("MAIN ST", roadways) is None
 
 
+def test_match_roadway_returns_none_when_all_matches_have_null_geometry():
+    # Regression test: roadway features with no geometry (e.g. from
+    # fetch_roadways before it filtered them, or any other source) can leave
+    # match_roadway with an all-None matches list. unary_union(all-None)
+    # yields GEOMETRYCOLLECTION EMPTY, and linemerge of that is an empty
+    # GeometryCollection - a type match_roadway's LineString/MultiLineString
+    # checks don't catch. Must return None (same as "no match found") instead
+    # of an empty geometry that would crash downstream interpolate() calls.
+    roadways = [
+        {"roadname": "Main St", "geometry": None},
+        {"roadname": "Main St", "geometry": None},
+    ]
+    result = match_roadway("MAIN ST", roadways)
+    assert result is None
+
+
 def test_match_roadway_returns_none_for_disjoint_same_named_segments():
     # Regression test: disjoint segments of same street name should return None
     # to avoid silently producing wrong geography via MultiLineString projection
