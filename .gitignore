@@ -1,4 +1,5 @@
 __pycache__/
 *.pyc
 mywater.db
+mywater_app.db
 .venv/

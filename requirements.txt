@@ -1,3 +1,9 @@
 requests
 shapely
 pytest
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+boto3
+httpx
