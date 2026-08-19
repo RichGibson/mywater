@@ -15,6 +15,11 @@ def conn(tmp_path):
     connection.close()
 
 
+@pytest.fixture(autouse=True)
+def rate_limit_pepper(monkeypatch):
+    monkeypatch.setenv("RATE_LIMIT_PEPPER", "test-pepper-value")
+
+
 def test_hash_identifier_is_deterministic_and_not_plaintext():
     from rate_limit import hash_identifier
 
@@ -69,3 +74,11 @@ def test_is_rate_limited_ignores_entries_older_than_24_hours(conn):
         )
     conn.commit()
     assert is_rate_limited(conn, ip_hash, cookie_id, limit=5) is False
+
+
+def test_hash_identifier_raises_if_pepper_unset(monkeypatch):
+    from rate_limit import hash_identifier
+
+    monkeypatch.delenv("RATE_LIMIT_PEPPER", raising=False)
+    with pytest.raises(RuntimeError, match="RATE_LIMIT_PEPPER"):
+        hash_identifier("1.2.3.4")
