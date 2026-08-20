@@ -17,6 +17,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="mywater", lifespan=lifespan)
 
+from routers import reports  # noqa: E402
+
+app.include_router(reports.router, prefix="/api")
+
 
 @app.get("/")
 def health():

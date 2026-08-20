@@ -17,7 +17,13 @@ _EXTENSION_CANDIDATES = [
 
 
 def connect(db_path):
-    conn = sqlite3.connect(db_path)
+    # check_same_thread=False: FastAPI dispatches sync dependency generators
+    # (e.g. db.get_db) through a worker thread separate from the thread that
+    # runs the (async) route handler body, so a single request's connection
+    # legitimately crosses threads. The connection is still only ever used
+    # sequentially within one request/one caller, never concurrently from
+    # multiple threads at once, so this is safe.
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.enable_load_extension(True)
     last_error = None
