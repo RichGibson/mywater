@@ -17,9 +17,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="mywater", lifespan=lifespan)
 
-from routers import reports  # noqa: E402
+from routers import parcels, reports  # noqa: E402
 
 app.include_router(reports.router, prefix="/api")
+app.include_router(parcels.router, prefix="/api")
 
 
 @app.get("/")

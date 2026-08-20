@@ -1,3 +1,4 @@
+import json
 import uuid
 from typing import Optional
 
@@ -124,3 +125,59 @@ async def create_report(
     )
 
     return {"id": cur.lastrowid, "report_type": report.report_type}
+
+
+@router.get("/reports.geojson")
+def reports_geojson(since: Optional[str] = None, until: Optional[str] = None, conn=Depends(get_db)):
+    query = """
+        SELECT
+            r.id, r.report_type, r.obscured, r.created_at, r.free_text, r.photo_url,
+            r.taste, r.smell, r.color, r.pressure, r.event_subtype, r.ongoing,
+            CASE WHEN r.obscured = 1 THEN pc.centroid_lat ELSE p.centroid_lat END AS lat,
+            CASE WHEN r.obscured = 1 THEN pc.centroid_lng ELSE p.centroid_lng END AS lng,
+            CASE WHEN r.obscured = 1 THEN pc.street_name ELSE NULL END AS cluster_street_name
+        FROM reports r
+        LEFT JOIN parcels_db.parcels p ON r.obscured = 0 AND p.id = r.parcel_id
+        LEFT JOIN parcels_db.parcel_clusters pc ON r.obscured = 1 AND pc.id = r.cluster_id
+        WHERE 1 = 1
+    """
+    params = []
+    if since:
+        query += " AND r.created_at >= ?"
+        params.append(since)
+    if until:
+        query += " AND r.created_at <= ?"
+        params.append(until)
+    query += " ORDER BY r.created_at DESC"
+
+    rows = conn.execute(query, params).fetchall()
+    features = []
+    for row in rows:
+        (
+            rid, report_type, obscured, created_at, free_text, photo_url,
+            taste, smell, color, pressure, event_subtype, ongoing,
+            lat, lng, cluster_street_name,
+        ) = row
+        properties = {
+            "id": rid,
+            "report_type": report_type,
+            "obscured": bool(obscured),
+            "created_at": created_at,
+            "free_text": free_text,
+            "photo_url": photo_url,
+            "taste": taste,
+            "smell": smell,
+            "color": color,
+            "pressure": pressure,
+            "event_subtype": event_subtype,
+            "ongoing": bool(ongoing) if ongoing is not None else None,
+        }
+        if obscured:
+            properties["location_label"] = (
+                f"area near {cluster_street_name}" if cluster_street_name else "area near unknown street"
+            )
+        geometry = None
+        if lat is not None and lng is not None:
+            geometry = {"type": "Point", "coordinates": [lng, lat]}
+        features.append({"type": "Feature", "geometry": geometry, "properties": properties})
+    return {"type": "FeatureCollection", "features": features}
