@@ -45,7 +45,11 @@ def parcels_db_path(tmp_path):
         "INSERT INTO parcel_clusters "
         "(street_name, centroid_lat, centroid_lng, parcel_count, anonymization_safe, geometry) "
         "VALUES (?, ?, ?, ?, ?, ST_GeomFromText(?, 4326))",
-        ("MAIN ST", 39.0, -122.6, 8, 1, _square(0, 0).wkt),
+        # Centroid is deliberately different from the parcel's centroid below
+        # (39.0, -122.6) so tests can distinguish "coordinates came from the
+        # cluster" from "coordinates came from the parcel" — see
+        # test_reports_geojson_for_obscured_report_never_exposes_parcel_identity.
+        ("MAIN ST", 39.5, -122.9, 8, 1, _square(0, 0).wkt),
     )
     safe_cluster_id = cur.lastrowid
     cur.execute(

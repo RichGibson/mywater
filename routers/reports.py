@@ -1,5 +1,6 @@
 import json
 import uuid
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Request, Response, UploadFile
@@ -127,8 +128,34 @@ async def create_report(
     return {"id": cur.lastrowid, "report_type": report.report_type}
 
 
+def _parse_date_param(value, param_name):
+    """Validate an ISO 8601 date/datetime query param, fail loudly on garbage.
+
+    Silently ignoring a malformed since/until would produce a wrong-but-200
+    response instead of a clear error, so we 422 rather than let bad input
+    fall through to the query.
+    """
+    try:
+        datetime.fromisoformat(value)
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{param_name} must be an ISO 8601 date or datetime string",
+        )
+    if len(value) == 10:
+        # Date-only (YYYY-MM-DD): normalize to end-of-day so "until=2026-08-20"
+        # includes reports created any time that day, not just at midnight.
+        return f"{value}T23:59:59"
+    return value
+
+
 @router.get("/reports.geojson")
 def reports_geojson(since: Optional[str] = None, until: Optional[str] = None, conn=Depends(get_db)):
+    if since is not None:
+        since = _parse_date_param(since, "since")
+    if until is not None:
+        until = _parse_date_param(until, "until")
+
     query = """
         SELECT
             r.id, r.report_type, r.obscured, r.created_at, r.free_text, r.photo_url,
@@ -138,7 +165,8 @@ def reports_geojson(since: Optional[str] = None, until: Optional[str] = None, co
             CASE WHEN r.obscured = 1 THEN pc.street_name ELSE NULL END AS cluster_street_name
         FROM reports r
         LEFT JOIN parcels_db.parcels p ON r.obscured = 0 AND p.id = r.parcel_id
-        LEFT JOIN parcels_db.parcel_clusters pc ON r.obscured = 1 AND pc.id = r.cluster_id
+        LEFT JOIN parcels_db.parcel_clusters pc
+            ON r.obscured = 1 AND pc.id = r.cluster_id AND pc.anonymization_safe = 1
         WHERE 1 = 1
     """
     params = []
@@ -164,7 +192,11 @@ def reports_geojson(since: Optional[str] = None, until: Optional[str] = None, co
             "obscured": bool(obscured),
             "created_at": created_at,
             "free_text": free_text,
-            "photo_url": photo_url,
+            # Obscured reports never publish photo_url: an uploaded phone
+            # photo can carry GPS EXIF data, so publishing its URL would let
+            # anyone recover the exact location this report is meant to hide,
+            # even though every other field is properly anonymized.
+            "photo_url": photo_url if not obscured else None,
             "taste": taste,
             "smell": smell,
             "color": color,
