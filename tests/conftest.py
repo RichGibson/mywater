@@ -78,10 +78,19 @@ def app_db_path(tmp_path):
 
 
 @pytest.fixture
-def client(parcels_db_path, app_db_path):
+def client(parcels_db_path, app_db_path, monkeypatch):
+    import db
     from main import app
 
     parcels_path, parcel_id, safe_cluster_id, unsafe_cluster_id = parcels_db_path
+
+    # TestClient(app) triggers the app's lifespan, which calls init_app_db()
+    # against db.DEFAULT_APP_DB_PATH if not overridden — without this
+    # monkeypatch, that writes a real schema file into the project directory
+    # (mywater_app.db) instead of the isolated tmp_path used by the get_db
+    # override below. This is the same fix 211a4b7 applied to the health
+    # check test; this fixture had regressed it for the whole API suite.
+    monkeypatch.setattr(db, "DEFAULT_APP_DB_PATH", app_db_path)
 
     def override_get_db():
         conn = spatialite_connect(str(app_db_path))
