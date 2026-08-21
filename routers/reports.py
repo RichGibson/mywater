@@ -8,12 +8,19 @@ from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Reque
 
 from db import get_db
 from models import ReportCreate
-from photos import PhotoValidationError, upload_photo
+from photos import MAX_PHOTO_SIZE_BYTES, PhotoValidationError, upload_photo
 from rate_limit import hash_identifier, is_rate_limited, record_submission
 
 router = APIRouter()
 
 COOKIE_NAME = "mywater_id"
+
+# Content-Length reflects the WHOLE multipart body (all form fields plus the
+# photo), not just the photo, so this is a cheap early-rejection ceiling for
+# obviously-too-large requests — not a precise check. The authoritative
+# per-photo size check remains photos.validate_photo, which runs after the
+# body is read.
+MAX_REQUEST_CONTENT_LENGTH = MAX_PHOTO_SIZE_BYTES + 10_000
 
 
 def _client_ip(request: Request):
@@ -101,6 +108,9 @@ async def create_report(
 
     photo_url = None
     if photo is not None and photo.filename:
+        content_length = request.headers.get("content-length")
+        if content_length is not None and int(content_length) > MAX_REQUEST_CONTENT_LENGTH:
+            raise HTTPException(status_code=400, detail="upload too large")
         content = await photo.read()
         try:
             photo_url = upload_photo(content, photo.content_type)

@@ -260,6 +260,42 @@ def test_photo_upload_missing_r2_config_returns_handled_400_not_500(client, app_
     assert count == 0
 
 
+def test_oversized_content_length_rejected_before_reading_body(client, app_db_path):
+    # Fix 7: an obviously-oversized request (per its Content-Length header)
+    # must be rejected before the body is read/passed to upload_photo. We
+    # override Content-Length to a huge value while actually sending a tiny
+    # body, and mock upload_photo to SUCCEED if called — so the only way
+    # this test can observe a 400 (and upload_photo NOT being called) is if
+    # the early Content-Length check fired. Without Fix 7, this would reach
+    # upload_photo, which (mocked) succeeds, and the report would be
+    # inserted with a 200 — proving this test exercises the new check
+    # specifically, not photos.validate_photo's after-the-fact size check.
+    from photos import MAX_PHOTO_SIZE_BYTES
+
+    with patch(
+        "routers.reports.upload_photo",
+        return_value="https://photos.example.com/should-not-be-called.jpg",
+    ) as mock_upload:
+        resp = client.post(
+            "/api/reports",
+            data={
+                "report_type": "event",
+                "obscured": "false",
+                "parcel_id": str(client.parcel_id),
+                "event_subtype": "main_break",
+            },
+            files={"photo": ("test.jpg", b"tiny", "image/jpeg")},
+            headers={"content-length": str(MAX_PHOTO_SIZE_BYTES + 1_000_000)},
+        )
+    assert resp.status_code == 400
+    mock_upload.assert_not_called()
+
+    raw_conn = sqlite3.connect(str(app_db_path))
+    count = raw_conn.execute("SELECT COUNT(*) FROM reports").fetchone()[0]
+    raw_conn.close()
+    assert count == 0
+
+
 def test_reports_geojson_fails_closed_when_cluster_becomes_unsafe_after_submission(
     client, parcels_db_path
 ):
