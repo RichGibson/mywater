@@ -84,10 +84,10 @@ def test_rejects_invalid_field_combination(client):
 
 
 def test_rate_limit_blocks_after_threshold(client, monkeypatch):
+    # RATE_LIMIT_PER_DAY is read fresh on each call (see rate_limit._get_rate_limit_per_day),
+    # so setting the env var alone is sufficient — no need to also monkeypatch
+    # a module-level constant that no longer exists.
     monkeypatch.setenv("RATE_LIMIT_PER_DAY", "2")
-    import rate_limit
-
-    monkeypatch.setattr(rate_limit, "RATE_LIMIT_PER_DAY", 2)
 
     for _ in range(2):
         resp = client.post(

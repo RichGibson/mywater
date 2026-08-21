@@ -2,7 +2,9 @@ import hashlib
 import os
 from datetime import datetime, timedelta, timezone
 
-RATE_LIMIT_PER_DAY = int(os.environ.get("RATE_LIMIT_PER_DAY", "5"))
+
+def _get_rate_limit_per_day():
+    return int(os.environ.get("RATE_LIMIT_PER_DAY", "5"))
 
 
 def _get_pepper():
@@ -31,7 +33,7 @@ def _count_recent(conn, column, value, since_iso):
 
 def is_rate_limited(conn, ip_hash, cookie_id, limit=None):
     if limit is None:
-        limit = RATE_LIMIT_PER_DAY
+        limit = _get_rate_limit_per_day()
     since = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
     ip_count = _count_recent(conn, "ip_hash", ip_hash, since)
     cookie_count = _count_recent(conn, "cookie_id", cookie_id, since)
@@ -39,8 +41,17 @@ def is_rate_limited(conn, ip_hash, cookie_id, limit=None):
 
 
 def record_submission(conn, ip_hash, cookie_id):
+    # Coarsened to hour granularity (rather than relying on the schema's
+    # second-granularity default) so submission_log.created_at can't be
+    # rejoined precisely to reports.created_at. Without this, anyone with DB
+    # access could match an obscured report's insert-time timestamp to the
+    # submission_log row created microseconds later, recover the ip_hash/
+    # cookie_id behind it, and then find that same visitor's other reports
+    # — including a non-obscured one naming their exact parcel. This defeats
+    # the "anonymous even via a DB leak" guarantee for obscured reports.
+    hour_bucket = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:00:00")
     conn.execute(
-        "INSERT INTO submission_log (ip_hash, cookie_id) VALUES (?, ?)",
-        (ip_hash, cookie_id),
+        "INSERT INTO submission_log (ip_hash, cookie_id, created_at) VALUES (?, ?, ?)",
+        (ip_hash, cookie_id, hour_bucket),
     )
     conn.commit()

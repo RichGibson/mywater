@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -74,6 +75,35 @@ def test_is_rate_limited_ignores_entries_older_than_24_hours(conn):
         )
     conn.commit()
     assert is_rate_limited(conn, ip_hash, cookie_id, limit=5) is False
+
+
+def test_record_submission_stores_hour_truncated_timestamp(conn):
+    # Fix 2: submission_log.created_at must be coarsened to hour granularity
+    # so it can't be precisely rejoined to reports.created_at (which is
+    # second-granularity) to deanonymize an obscured report's ip_hash/cookie.
+    from rate_limit import record_submission
+
+    record_submission(conn, "iphash1", "cookie1")
+    row = conn.execute("SELECT created_at FROM submission_log").fetchone()
+    created_at = row[0]
+    assert created_at.endswith(":00:00")
+    # Sanity check it's still a real, current-ish ISO timestamp, not a
+    # hardcoded string.
+    parsed = datetime.strptime(created_at, "%Y-%m-%dT%H:00:00")
+    assert abs((datetime.now(timezone.utc).replace(tzinfo=None) - parsed).total_seconds()) < 3600
+
+
+def test_is_rate_limited_true_when_ip_hits_threshold_with_real_record_submission(conn):
+    # Confirms is_rate_limited's 24h-window comparison still works correctly
+    # against the hour-truncated timestamps that record_submission now
+    # writes (rather than manually inserting second-precision timestamps).
+    from rate_limit import is_rate_limited, record_submission
+
+    ip_hash, cookie_id = "iphash1", "cookie1"
+    for _ in range(5):
+        record_submission(conn, ip_hash, cookie_id)
+    assert is_rate_limited(conn, ip_hash, cookie_id, limit=5) is True
+    assert is_rate_limited(conn, "some_other_ip", "some_other_cookie", limit=5) is False
 
 
 def test_hash_identifier_raises_if_pepper_unset(monkeypatch):
