@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS reports (
     report_type TEXT NOT NULL CHECK (report_type IN ('event', 'quality')),
     obscured INTEGER NOT NULL CHECK (obscured IN (0, 1)),
     parcel_id INTEGER,
+    parcel_apn TEXT,
     cluster_id INTEGER,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now')),
     free_text TEXT,

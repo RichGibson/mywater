@@ -2,6 +2,9 @@ import sqlite3
 from datetime import datetime, timezone
 from unittest.mock import patch
 
+from precompute.load import connect as spatialite_connect
+from tests.conftest import _square
+
 # Allowlist for an obscured report's GeoJSON properties. Asserting against
 # this (rather than checking a handful of forbidden keys) means the test
 # fails on ANY unexpected key showing up, not just the ones we thought to
@@ -241,6 +244,91 @@ def test_reports_geojson_fails_closed_when_cluster_becomes_unsafe_after_submissi
     feature = body["features"][0]
     assert feature["properties"]["obscured"] is True
     assert feature["geometry"] is None
+
+
+def test_report_stores_parcel_apn_at_write_time(client, app_db_path):
+    # Fix 1 regression test (part 1): the write path must persist the
+    # parcel's stable apn alongside the unstable parcel_id, so a later
+    # precompute rebuild that renumbers parcel_id can't misattribute this
+    # report to a different physical parcel.
+    resp = client.post(
+        "/api/reports",
+        data={
+            "report_type": "event",
+            "obscured": "false",
+            "parcel_id": str(client.parcel_id),
+            "event_subtype": "main_break",
+        },
+    )
+    assert resp.status_code == 200
+    report_id = resp.json()["id"]
+
+    raw_conn = sqlite3.connect(str(app_db_path))
+    row = raw_conn.execute(
+        "SELECT parcel_id, parcel_apn FROM reports WHERE id = ?", (report_id,)
+    ).fetchone()
+    raw_conn.close()
+    assert row == (client.parcel_id, "TEST_APN_1")
+
+
+def test_reports_geojson_resolves_by_apn_not_by_stale_parcel_id(client, parcels_db_path):
+    # Fix 1 regression test (part 2): simulates a precompute rebuild that
+    # renumbers parcel_id for the same physical parcel (same apn, new id).
+    # If the geojson read path still joined on parcel_id (the pre-fix
+    # behavior), this report's geometry would silently disappear (old id no
+    # longer exists) or, worse in a real rebuild, resolve to a DIFFERENT
+    # physical parcel that happened to get the same id. Joining on apn must
+    # keep resolving to the correct, current row for the same physical
+    # parcel regardless of what id it was assigned this time around.
+    resp = client.post(
+        "/api/reports",
+        data={
+            "report_type": "event",
+            "obscured": "false",
+            "parcel_id": str(client.parcel_id),
+            "event_subtype": "main_break",
+        },
+    )
+    assert resp.status_code == 200
+
+    parcels_path, old_parcel_id, safe_cluster_id, _unsafe_cluster_id = parcels_db_path
+
+    # Simulate a precompute rebuild: the same physical parcel (same apn)
+    # comes back from the county ArcGIS fetch in a different order and is
+    # assigned a brand-new id, with an updated centroid (e.g. a corrected
+    # survey). We delete-and-reinsert rather than UPDATE because `id` is an
+    # AUTOINCREMENT PRIMARY KEY.
+    raw_conn = spatialite_connect(str(parcels_path))
+    raw_conn.execute("DELETE FROM parcels WHERE id = ?", (old_parcel_id,))
+    new_square = _square(3, 3).wkt
+    raw_conn.execute(
+        "INSERT INTO parcels "
+        "(id, apn, situsstr, situsnum, cluster_id, centroid_lat, centroid_lng, geometry) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ST_GeomFromText(?, 4326))",
+        (
+            old_parcel_id + 500,
+            "TEST_APN_1",  # same apn — same physical parcel
+            "MAIN ST",
+            "100",
+            safe_cluster_id,
+            39.7,  # deliberately different centroid than the original (39.0, -122.6)
+            -122.77,
+            new_square,
+        ),
+    )
+    raw_conn.commit()
+    raw_conn.close()
+
+    resp = client.get("/api/reports.geojson")
+    assert resp.status_code == 200
+    body = resp.json()
+    feature = body["features"][0]
+    assert feature["properties"]["obscured"] is False
+    # Resolved via apn to the post-"rebuild" row's new centroid, not left
+    # null (which is what joining on the now-deleted old id would produce)
+    # and not stuck on the pre-rebuild centroid.
+    assert feature["geometry"] is not None
+    assert feature["geometry"]["coordinates"] == [-122.77, 39.7]
 
 
 def test_reports_geojson_filters_by_since_and_until(client):
