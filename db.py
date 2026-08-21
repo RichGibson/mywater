@@ -24,6 +24,17 @@ def get_connection(app_db_path=None, parcels_db_path=None):
         app_db_path = DEFAULT_APP_DB_PATH
     if parcels_db_path is None:
         parcels_db_path = DEFAULT_PARCELS_DB_PATH
+    # SQLite's ATTACH DATABASE silently CREATES an empty file when the path
+    # doesn't exist, rather than erroring — so without this check, a missing
+    # mywater.db (e.g. fresh deploy before precompute has run, or a
+    # misconfigured path) would produce a 0-byte attached database and every
+    # subsequent query would fail with a confusing "no such table" instead
+    # of a clear signal about what's actually wrong.
+    if not Path(parcels_db_path).exists():
+        raise RuntimeError(
+            f"Parcels database not found at {parcels_db_path} — "
+            "has the precompute pipeline been run?"
+        )
     conn = _connect_spatialite(str(app_db_path))
     try:
         conn.execute("ATTACH DATABASE ? AS parcels_db", (str(parcels_db_path),))

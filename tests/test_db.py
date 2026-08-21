@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 
 def test_init_app_db_creates_expected_tables(tmp_path):
     from db import init_app_db
@@ -48,6 +49,27 @@ def test_get_connection_attaches_parcels_db_read_access(tmp_path):
     conn.close()
     assert "reports" in tables
     assert {"parcels", "parcel_clusters"} <= attached_tables
+
+
+def test_get_connection_raises_clear_error_when_parcels_db_missing(tmp_path):
+    # Fix 4: SQLite's ATTACH DATABASE silently creates an empty file for a
+    # nonexistent path instead of erroring, which previously turned a
+    # missing/misconfigured mywater.db into confusing downstream
+    # "OperationalError: no such table" failures on every real query. This
+    # must fail loudly and clearly at connection time instead.
+    from db import get_connection, init_app_db
+
+    app_db_path = tmp_path / "mywater_app.db"
+    init_app_db(app_db_path)
+
+    missing_parcels_db_path = tmp_path / "does_not_exist.db"
+    assert not missing_parcels_db_path.exists()
+
+    with pytest.raises(RuntimeError, match="does_not_exist.db"):
+        get_connection(app_db_path=app_db_path, parcels_db_path=missing_parcels_db_path)
+
+    # Confirm ATTACH's silent-file-creation behavior didn't sneak through.
+    assert not missing_parcels_db_path.exists()
 
 
 def test_health_check_returns_ok(tmp_path, monkeypatch):
