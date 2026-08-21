@@ -211,6 +211,55 @@ def test_reports_geojson_shows_photo_url_for_non_obscured_report(client):
     assert feature["properties"]["photo_url"] == "https://photos.example.com/parcel-photo.jpg"
 
 
+def test_photo_upload_r2_client_error_returns_handled_400_not_500(client, app_db_path):
+    # Fix 3: a ClientError from R2 (e.g. auth rejection, bucket error) must
+    # be caught and turned into a clear 400, not propagate as an unhandled
+    # 500 — and the submission must be blocked (not partially inserted),
+    # per the design spec's Error Handling section.
+    from botocore.exceptions import ClientError
+
+    error = ClientError({"Error": {"Code": "500", "Message": "boom"}}, "PutObject")
+    with patch("routers.reports.upload_photo", side_effect=error):
+        resp = client.post(
+            "/api/reports",
+            data={
+                "report_type": "event",
+                "obscured": "false",
+                "parcel_id": str(client.parcel_id),
+                "event_subtype": "main_break",
+            },
+            files={"photo": ("test.jpg", b"fake-image-bytes", "image/jpeg")},
+        )
+    assert resp.status_code == 400
+
+    raw_conn = sqlite3.connect(str(app_db_path))
+    count = raw_conn.execute("SELECT COUNT(*) FROM reports").fetchone()[0]
+    raw_conn.close()
+    assert count == 0
+
+
+def test_photo_upload_missing_r2_config_returns_handled_400_not_500(client, app_db_path):
+    # Fix 3: an unconfigured R2 (missing env var -> KeyError in
+    # photos._r2_client) must also be handled, not surface as a 500.
+    with patch("routers.reports.upload_photo", side_effect=KeyError("R2_ACCOUNT_ID")):
+        resp = client.post(
+            "/api/reports",
+            data={
+                "report_type": "event",
+                "obscured": "false",
+                "parcel_id": str(client.parcel_id),
+                "event_subtype": "main_break",
+            },
+            files={"photo": ("test.jpg", b"fake-image-bytes", "image/jpeg")},
+        )
+    assert resp.status_code == 400
+
+    raw_conn = sqlite3.connect(str(app_db_path))
+    count = raw_conn.execute("SELECT COUNT(*) FROM reports").fetchone()[0]
+    raw_conn.close()
+    assert count == 0
+
+
 def test_reports_geojson_fails_closed_when_cluster_becomes_unsafe_after_submission(
     client, parcels_db_path
 ):

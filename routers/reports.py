@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Request, Response, UploadFile
 
 from db import get_db
@@ -105,6 +106,17 @@ async def create_report(
             photo_url = upload_photo(content, photo.content_type)
         except PhotoValidationError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+        except (KeyError, BotoCoreError, ClientError):
+            # KeyError: R2 credentials/config missing from the environment.
+            # BotoCoreError/ClientError: R2 network or API failure (e.g.
+            # EndpointConnectionError, auth rejection). Per the design
+            # spec's Error Handling section, a photo upload failure must
+            # block submission with a clear error rather than a bare 500 —
+            # the client can still retry without a photo.
+            raise HTTPException(
+                status_code=400,
+                detail="couldn't upload photo right now; try again or submit without a photo",
+            )
 
     cur = conn.execute(
         """
