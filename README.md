@@ -6,6 +6,29 @@ It fetches Lake County CA parcel and roadway data, clusters parcels into
 into a SpatiaLite database so residents can report issues either at their
 exact parcel or "obscured" to a cluster of neighboring parcels for privacy.
 
+## DEPLOYMENT: Cloudflare firewall is REQUIRED before going live
+
+**The backend API trusts the `CF-Connecting-IP` header unconditionally** to
+identify clients for rate limiting (`routers/reports.py`'s `_client_ip`).
+This is safe ONLY when the Hetzner origin server is reachable exclusively
+through Cloudflare's proxy, because Cloudflare overwrites this header and a
+client cannot forge it through Cloudflare.
+
+If the origin is EVER directly reachable — a firewall misconfiguration, or
+someone simply discovers the origin IP — a client can send an arbitrary
+`CF-Connecting-IP: <anything>` on each request and trivially bypass the
+IP-based half of rate limiting (the cookie-based half is already
+voluntary/discardable, so IP-based limiting is the load-bearing protection
+against abuse).
+
+**Before this app goes live, the Hetzner origin MUST be firewalled to
+accept connections only from Cloudflare's published IP ranges:**
+https://www.cloudflare.com/ips/
+
+This is a deployment/infrastructure requirement, not something the
+application code can enforce on its own — there is no code-level mitigation
+for a misconfigured firewall.
+
 ## Setup
 
 The Python interpreter used to run this pipeline (or its tests) **must**
