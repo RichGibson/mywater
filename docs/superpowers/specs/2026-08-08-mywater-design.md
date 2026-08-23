@@ -111,7 +111,7 @@ Run once before first deploy, and again only if underlying parcel data changes:
 
 ## Error Handling
 
-- Click outside the CLOCWD service area boundary → rejected with "please select a point within the service district," checked client-side against the boundary GeoJSON and re-checked server-side.
+- Click where no parcel/cluster exists → nothing to select (no boundary polygon exists to check against — see Service-area scoping note; scope is implicit in which parcels the precompute pipeline loaded). The map simply has no parcel/cluster under the cursor there; no error message needed, just no selection made.
 - Rate limit exceeded → friendly, non-punitive message ("you've reached today's report limit — try again tomorrow").
 - Photo upload failure (size/type/R2 error) → inline form error; submission blocked until fixed or photo removed, but text-only submission still allowed.
 - Malformed/missing required fields → inline validation message in the side panel, submission blocked until corrected.
