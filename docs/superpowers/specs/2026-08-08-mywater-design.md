@@ -24,7 +24,8 @@ A public, map-based site for the Clearlake Oaks County Water District (CLOCWD) s
 
 Per the existing site-building playbook (`projects/websites-readme.md`, `projects/template-site/PLAYBOOK.md`), this is a **dynamic site** (needs a running server for reports/photos/timeline), following the same pattern as `megazoomquilt.com`.
 
-- **Backend**: FastAPI + Jinja2 + HTMX, following `projects/template-code` conventions.
+- **Backend**: FastAPI + Jinja2, following `projects/template-code` conventions.
+- **Frontend interaction** (revised 2026-08-22 — HTMX dropped): the backend API was built as JSON/GeoJSON endpoints, not HTML-fragment-returning ones, so HTMX's core value (avoiding hand-written JS DOM updates) doesn't apply. The frontend uses plain JS `fetch()` for all API calls — loading map layers and submitting reports — with JS directly updating the DOM (Leaflet markers, side panel) on response. No HTMX dependency.
 - **Database**: SQLite + SpatiaLite extension, **two files** on the Hetzner box (revised 2026-08-18 — see note below): `mywater.db` (precompute-owned: `parcels`, `parcel_clusters`) and `mywater_app.db` (backend-owned: `reports`, `submission_log`). Chosen over PostGIS to avoid running a separate DB service; chosen over plain SQLite (no spatial extension) so spatial queries can be expressed directly in SQL if needed later, rather than only via an in-app index.
 - **Why two files, not one** (revised from the original single-file plan): the precompute pipeline's re-run behavior deletes and rebuilds its output file from scratch on every run (`db_path.unlink()`), by design — it's meant to be safely re-runnable whenever county parcel data changes. If `reports`/`submission_log` lived in that same file, a production re-run would delete every user report outright, not just orphan a foreign key. Splitting into two files makes precompute's destructive rebuild structurally incapable of touching backend data, with no operational discipline required. The backend `ATTACH`es `mywater.db` read-only when it needs to join a report to its parcel/cluster (e.g. building the map GeoJSON).
 - **Frontend map**: Leaflet.js + OSM tiles for the base map (streets, orientation); parcels, clusters, and report markers rendered as GeoJSON overlays on top.
@@ -52,6 +53,10 @@ reports
   id, report_type            -- 'event' | 'quality'
   obscured                   -- bool
   parcel_id                  -- FK -> parcels; set if NOT obscured (exact parcel picked)
+  parcel_apn                 -- the parcel's stable APN, set alongside parcel_id; the
+                              -- read path joins on this, not parcel_id, since parcel_id
+                              -- is not stable across precompute rebuilds (added during
+                              -- backend's final review, 2026-08-22)
   cluster_id                 -- FK -> parcel_clusters; set if obscured
   created_at
   free_text                  -- capped length (e.g. 500 chars)
@@ -86,8 +91,8 @@ Run once before first deploy, and again only if underlying parcel data changes:
 **Flow**:
 1. User picks "show my location" or "obscure location" before interacting with the map.
 2. Map switches mode accordingly: *show-my-location* highlights the parcel under the cursor and confirms on click; *obscure* shows cluster boundaries and confirms the clicked cluster.
-3. An HTMX partial form appears: report type (Event / Quality), type-specific fields, capped free-text, optional photo.
-4. On submit: server validates fields, checks rate limit, uploads photo to R2 if present, inserts the `reports` row, and returns the updated marker/timeline partial.
+3. A slide-out side panel appears with the report form: report type (Event / Quality), type-specific fields, capped free-text, optional photo. The map stays visible and interactive underneath.
+4. On submit: JS posts the form via `fetch()` to `POST /api/reports`; the server validates fields, checks rate limit, uploads photo to R2 if present, and inserts the `reports` row. On success, JS closes the panel and adds the new marker to the map directly (re-fetching `reports.geojson` or inserting the known new point, implementation's choice); on error, the panel shows an inline message and stays open.
 
 **Abuse mitigation** (deliberately lightweight, per project preference — no accounts, no CAPTCHA for v1):
 - **Rate limit**: cap submissions per IP and per cookie, whichever is stricter — starting guess of 5 reports/day per identity, easily tunable later since it's just a threshold query against `submission_log`. IP read from Cloudflare's `CF-Connecting-IP` header once deployed behind Cloudflare. Cookie is a random ID set on first visit, carries no PII.
@@ -98,16 +103,18 @@ Run once before first deploy, and again only if underlying parcel data changes:
 ## Map & Timeline UI
 
 - **Map** (Leaflet + OSM tiles): base layer for streets/orientation. Toggleable overlays: parcels (shown when placing an exact report), clusters (shown when obscuring), report markers (always visible, styled by type and recency).
-- **Timeline**: a date-range scrubber below the map drives which report markers are shown, via an HTMX request that returns a fresh GeoJSON partial; a small JS layer swaps the Leaflet markers on each update. The scrubber is the map/timeline sync mechanism — no separate timeline-only feed in v1.
+- **Timeline** (simplified 2026-08-22): a single "look back N days" slider, not a two-handle date range — filters to reports from N days ago through now. JS re-fetches `GET /api/reports.geojson?since=...` on change and re-renders the marker layer. Chosen over a full date-range picker for simplicity, since the timeline is secondary to the map in this design.
 - **Report detail**: clicking a marker opens a panel with type, ratings (if quality), free text, photo (if present), and timestamp. Obscured reports show only the cluster label (e.g. "area near X St"), never a parcel-level address.
 - **Legend**: key for marker styling (event vs quality, recency shading).
+- **Responsive**: mobile/phone layout is in scope for v1, not deferred — the map is the core interaction and residents are expected to check it from their phones. The side panel becomes a bottom sheet or full-screen overlay on narrow viewports.
+- **About/FAQ page**: a separate page (linked from nav) explaining the project and specifically addressing the anonymization approach and its limits — what "obscure my location" actually does, and that it's not a mathematical guarantee for every cluster (some clusters are small). Confirmed requirement, added 2026-08-18.
 
 ## Error Handling
 
 - Click outside the CLOCWD service area boundary → rejected with "please select a point within the service district," checked client-side against the boundary GeoJSON and re-checked server-side.
 - Rate limit exceeded → friendly, non-punitive message ("you've reached today's report limit — try again tomorrow").
 - Photo upload failure (size/type/R2 error) → inline form error; submission blocked until fixed or photo removed, but text-only submission still allowed.
-- Malformed/missing required fields → standard inline validation via HTMX partial re-render.
+- Malformed/missing required fields → inline validation message in the side panel, submission blocked until corrected.
 - Precompute pipeline failures (unmatched parcels) → logged and excluded, never silently dropped without a trace.
 
 ## Testing / Verification
@@ -115,7 +122,7 @@ Run once before first deploy, and again only if underlying parcel data changes:
 Split by stakes: automated tests where correctness is load-bearing (privacy guarantee, abuse mitigation), manual checks where it's visual/low-stakes.
 
 - **Automated tests**: precompute clustering (cluster sizes land in 6-10, every parcel assigned to exactly one cluster, unmatched parcels are logged not dropped), the `parcel_id`/`cluster_id` mutual-exclusivity invariant on `reports`, and rate-limit threshold logic in `submission_log` queries.
-- **Manual verification**: map/timeline UI, HTMX partial swaps, end-to-end pass before launch — submit both report types, obscured and non-obscured, with and without photos; confirm rate limiting triggers past the threshold in the running app; confirm the timeline scrubber filters markers correctly.
+- **Manual verification**: map/timeline UI, side-panel form interactions, mobile layout, end-to-end pass before launch — submit both report types, obscured and non-obscured, with and without photos; confirm rate limiting triggers past the threshold in the running app; confirm the timeline slider filters markers correctly.
 
 ## Deployment
 
