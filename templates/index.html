@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}mywater — Clearlake Oaks water reports{% endblock %}
+
+{% block body_class %}map-page{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+{% endblock %}
+
+{% block content %}
+<div id="map"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% endblock %}

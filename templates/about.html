@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}About — mywater{% endblock %}
+
+{% block content %}
+<h1>About mywater</h1>
+<p>
+  mywater is a community-run map for residents of Clearlake Oaks (Lake County, CA) to
+  report water quality issues — main breaks, outages, boil-water notices, and ongoing
+  concerns about taste, smell, color, or pressure. It exists because reports were
+  scattered across Facebook posts and hard to track over time; this site keeps a
+  public, persistent record instead.
+</p>
+
+<h2>How location works</h2>
+<p>
+  When you file a report, you choose one of two ways to place it on the map:
+</p>
+<p>
+  <strong>Show my exact location</strong> places your report at your specific parcel.
+  Anyone viewing the map can see it's your property.
+</p>
+<p>
+  <strong>Obscure my location</strong> places your report at the center of a small
+  cluster of neighboring parcels (usually around 8) instead of your specific address.
+  We never capture, transmit, or store your exact address for an obscured report —
+  the map only ever shows you a cluster to choose from, not a point.
+</p>
+
+<h2>Limits of anonymization</h2>
+<p>
+  Obscuring your location works by grouping you with roughly 8 neighboring homes
+  along the same street. In most of Clearlake Oaks, this genuinely hides which
+  specific home a report came from. But on very short streets or in sparsely built
+  areas, there may not be enough neighboring homes to form a group that size. When
+  that happens, we don't offer that area as an anonymization option at all — you'll
+  only see a cluster on the map if it has enough parcels nearby to actually protect
+  your privacy.
+</p>
+<p>
+  We also don't publish photos for obscured reports, since a phone photo can carry
+  hidden location data (EXIF metadata) that would defeat the point of obscuring your
+  address.
+</p>
+<p>
+  If you need real anonymity, choose "obscure my location" and avoid including
+  identifying details — like your house number — in your description.
+</p>
+
+<h2>Other things worth knowing</h2>
+<p>
+  Reports publish immediately with no review — there's no account system, and no
+  moderation queue. This keeps the site simple, but it means reports reflect what
+  residents submit, not a verified record. Submissions are rate-limited to prevent
+  spam, but the limit is intentionally light.
+</p>
+{% endblock %}

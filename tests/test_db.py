@@ -80,6 +80,6 @@ def test_health_check_returns_ok(tmp_path, monkeypatch):
     from main import app
 
     with TestClient(app) as client:
-        resp = client.get("/")
+        resp = client.get("/healthz")
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
