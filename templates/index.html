@@ -19,9 +19,82 @@
   <div class="legend-item"><span class="legend-swatch legend-event"></span> Event (break/outage)</div>
   <div class="legend-item"><span class="legend-swatch legend-quality"></span> Quality report</div>
 </div>
+<div id="report-panel">
+  <div id="report-panel-header">
+    <span id="report-panel-location"></span>
+    <button id="report-panel-close" type="button" aria-label="Close">&times;</button>
+  </div>
+  <form id="report-form">
+    <input type="hidden" id="field-parcel-id" name="parcel_id" />
+    <input type="hidden" id="field-cluster-id" name="cluster_id" />
+    <input type="hidden" id="field-obscured" name="obscured" />
+
+    <label for="field-report-type">Report type</label>
+    <select id="field-report-type" name="report_type">
+      <option value="quality">Ongoing quality issue</option>
+      <option value="event">One-time event</option>
+    </select>
+
+    <div class="field-event">
+      <label for="field-event-subtype">What kind of event?</label>
+      <select id="field-event-subtype" name="event_subtype">
+        <option value="main_break">Water main break</option>
+        <option value="outage">Outage</option>
+        <option value="boil_notice">Boil-water notice</option>
+        <option value="other">Other</option>
+      </select>
+      <label>
+        <input type="checkbox" id="field-ongoing" name="ongoing" value="true" />
+        Still ongoing
+      </label>
+    </div>
+
+    <div class="field-quality">
+      <label for="field-taste">Taste</label>
+      <select id="field-taste" name="taste">
+        <option value="">No opinion</option>
+        <option value="good">Good</option>
+        <option value="off">Off</option>
+        <option value="bad">Bad</option>
+      </select>
+      <label for="field-smell">Smell</label>
+      <select id="field-smell" name="smell">
+        <option value="">No opinion</option>
+        <option value="good">Good</option>
+        <option value="off">Off</option>
+        <option value="bad">Bad</option>
+      </select>
+      <label for="field-color">Color</label>
+      <select id="field-color" name="color">
+        <option value="">No opinion</option>
+        <option value="good">Good</option>
+        <option value="off">Off</option>
+        <option value="bad">Bad</option>
+      </select>
+      <label for="field-pressure">Pressure</label>
+      <select id="field-pressure" name="pressure">
+        <option value="">No opinion</option>
+        <option value="good">Good</option>
+        <option value="off">Off</option>
+        <option value="bad">Bad</option>
+      </select>
+    </div>
+
+    <label for="field-free-text">Description (optional, 500 characters max)</label>
+    <textarea id="field-free-text" name="free_text" maxlength="500"></textarea>
+
+    <label for="field-photo">Photo (optional, JPEG/PNG/HEIC, up to 5MB)</label>
+    <input type="file" id="field-photo" name="photo" accept="image/jpeg,image/png,image/heic" />
+
+    <div id="report-panel-error"></div>
+
+    <button type="submit">Submit report</button>
+  </form>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/static/map.js"></script>
+<script src="/static/report-form.js"></script>
 {% endblock %}
