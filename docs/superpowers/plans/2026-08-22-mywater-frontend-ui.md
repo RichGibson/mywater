@@ -60,7 +60,18 @@ projects/mywater/
 - Consumes: `tests/conftest.py`'s `client` fixture (already exists from the backend plan — provides a `TestClient` with isolated temp databases via `dependency_overrides`, importable with no changes needed).
 - Produces: `GET /` (renders `index.html`), `GET /about` (renders `about.html`), `GET /healthz` (the former `GET /` health check, moved). Later tasks extend `index.html` and `style.css` in place — this task establishes their skeleton.
 
-- [ ] **Step 1: Copy the base stylesheet**
+- [ ] **Step 1: Add jinja2 as a dependency**
+
+`jinja2` was never added to `requirements.txt` — the backend plan built a JSON-only API with no templates, so it was never needed. Confirmed by direct check: the `mywater` conda env raises `ModuleNotFoundError: No module named 'jinja2'` on `from starlette.templating import Jinja2Templates` until installed.
+
+Append `jinja2` to `projects/mywater/requirements.txt` (add as a new line; order doesn't matter), then install it:
+```bash
+cd projects/mywater
+conda activate mywater
+pip install jinja2
+```
+
+- [ ] **Step 2: Copy the base stylesheet**
 
 `projects/mywater/static/style.css`:
 ```css
@@ -155,7 +166,7 @@ footer a { color: var(--border); }
 footer a:hover { color: var(--muted); text-decoration: none; }
 ```
 
-- [ ] **Step 2: Write base.html**
+- [ ] **Step 3: Write base.html**
 
 `projects/mywater/templates/base.html`:
 ```html
@@ -198,7 +209,7 @@ footer a:hover { color: var(--muted); text-decoration: none; }
 </html>
 ```
 
-- [ ] **Step 3: Write the index.html skeleton (extended in Tasks 2-4)**
+- [ ] **Step 4: Write the index.html skeleton (extended in Tasks 2-4)**
 
 `projects/mywater/templates/index.html`:
 ```html
@@ -221,7 +232,7 @@ footer a:hover { color: var(--muted); text-decoration: none; }
 {% endblock %}
 ```
 
-- [ ] **Step 4: Write the About/FAQ page content**
+- [ ] **Step 5: Write the About/FAQ page content**
 
 `projects/mywater/templates/about.html`:
 ```html
@@ -284,7 +295,7 @@ footer a:hover { color: var(--muted); text-decoration: none; }
 {% endblock %}
 ```
 
-- [ ] **Step 5: Write the failing tests for the new/moved routes**
+- [ ] **Step 6: Write the failing tests for the new/moved routes**
 
 `projects/mywater/tests/test_pages.py`:
 ```python
@@ -308,7 +319,7 @@ def test_healthz_returns_ok(client):
     assert resp.json() == {"status": "ok"}
 ```
 
-- [ ] **Step 6: Update the existing health-check test to target the new path**
+- [ ] **Step 7: Update the existing health-check test to target the new path**
 
 In `projects/mywater/tests/test_db.py`, change `test_health_check_returns_ok` (the last function in the file) so it requests `/healthz` instead of `/`, since `main.py`'s Step 7 below moves the health check there:
 
@@ -326,12 +337,12 @@ def test_health_check_returns_ok(tmp_path, monkeypatch):
     assert resp.json() == {"status": "ok"}
 ```
 
-- [ ] **Step 7: Run tests to verify they fail**
+- [ ] **Step 8: Run tests to verify they fail**
 
 Run: `cd projects/mywater && conda activate mywater && python -m pytest tests/test_pages.py tests/test_db.py -v`
 Expected: `test_pages.py`'s tests FAIL (404s, since `/`, `/about` aren't defined yet as page routes — `/` currently returns the health-check JSON, not HTML); `test_db.py::test_health_check_returns_ok` FAILS (404, since `/healthz` doesn't exist yet)
 
-- [ ] **Step 8: Update main.py**
+- [ ] **Step 9: Update main.py**
 
 `projects/mywater/main.py` (replace entire file):
 ```python
@@ -385,17 +396,17 @@ async def about(request: Request):
 
 Note: this uses the current (non-deprecated) `TemplateResponse(request, name, context)` signature — deliberately not the older `TemplateResponse(name, {"request": request})` form some older FastAPI examples use, since the older form emits a deprecation warning on current Starlette versions and this project has kept test output warning-free throughout.
 
-- [ ] **Step 9: Run tests to verify they pass**
+- [ ] **Step 10: Run tests to verify they pass**
 
 Run: `cd projects/mywater && conda activate mywater && python -m pytest tests/test_pages.py tests/test_db.py -v`
 Expected: PASS (3 tests in `test_pages.py`, all of `test_db.py` including the updated health check)
 
-- [ ] **Step 10: Run the full suite to confirm no regressions**
+- [ ] **Step 11: Run the full suite to confirm no regressions**
 
 Run: `cd projects/mywater && conda activate mywater && python -m pytest tests/ -v`
 Expected: PASS (all existing tests plus the 3 new ones, output pristine aside from the one pre-existing httpx/Starlette deprecation warning)
 
-- [ ] **Step 11: Manual verification — start the dev server and load both pages**
+- [ ] **Step 12: Manual verification — start the dev server and load both pages**
 
 ```bash
 cd projects/mywater
@@ -411,11 +422,11 @@ curl -s http://localhost:8765/healthz
 ```
 Expected: the first command prints the map div, the second prints lines containing "obscure", the third prints `{"status":"ok"}`. If you have a browser available, also open `http://localhost:8765/` and `http://localhost:8765/about` directly and confirm the nav/footer render with the dark theme and the About page's content is readable — this early check has nothing to verify visually yet beyond the shell working, but confirms the template/static wiring is correct before later tasks add real content to it.
 
-- [ ] **Step 12: Commit**
+- [ ] **Step 13: Commit**
 
 ```bash
-git add projects/mywater/main.py projects/mywater/templates/ projects/mywater/static/style.css \
-  projects/mywater/tests/test_pages.py projects/mywater/tests/test_db.py
+git add projects/mywater/requirements.txt projects/mywater/main.py projects/mywater/templates/ \
+  projects/mywater/static/style.css projects/mywater/tests/test_pages.py projects/mywater/tests/test_db.py
 git commit -m "mywater: page scaffolding, About/FAQ content, health check moved to /healthz"
 ```
 
