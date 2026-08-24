@@ -9,9 +9,19 @@
 {% endblock %}
 
 {% block content %}
+<div id="mode-toggle">
+  <button id="mode-exact" class="mode-button active">Show my location</button>
+  <button id="mode-obscure" class="mode-button">Obscure my location</button>
+</div>
 <div id="map"></div>
+<div id="map-message"></div>
+<div id="legend">
+  <div class="legend-item"><span class="legend-swatch legend-event"></span> Event (break/outage)</div>
+  <div class="legend-item"><span class="legend-swatch legend-quality"></span> Quality report</div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/map.js"></script>
 {% endblock %}
