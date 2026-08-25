@@ -26,6 +26,7 @@ function updateFieldVisibility() {
 }
 
 function openReportPanel(selection) {
+  if (window.mywaterCloseDetailPanel) window.mywaterCloseDetailPanel();
   panelError.textContent = '';
   form.reset();
   document.getElementById('field-parcel-id').value = selection.type === 'parcel' ? selection.id : '';
@@ -138,3 +139,4 @@ document.getElementById('report-panel-close').addEventListener('click', closeRep
 
 window.mywaterOpenReportPanel = openReportPanel;
 window.mywaterShowMessage = showMessage;
+window.mywaterCloseReportPanel = closeReportPanel;

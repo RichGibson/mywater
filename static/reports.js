@@ -58,6 +58,7 @@ function renderReports(geojson) {
       weight: 1,
     });
     marker.on('click', () => {
+      if (window.mywaterCloseReportPanel) window.mywaterCloseReportPanel();
       detailContent.innerHTML = reportDetailHtml(feature.properties);
       detailPanel.classList.add('open');
     });
@@ -69,11 +70,21 @@ function fetchReports(sinceDays) {
   let url = '/api/reports.geojson';
   if (sinceDays !== null) {
     const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
-    url += `?since=${since.toISOString().slice(0, 10)}`;
+    // Send the full ISO timestamp, not a bare YYYY-MM-DD date: the backend's
+    // _parse_date_param normalizes any 10-character date-only string to
+    // end-of-day (T23:59:59), which is correct for `until` (include the
+    // whole day) but wrong for `since` — it would push the lower bound of
+    // the lookback window to the end of today instead of N days ago at this
+    // exact time, silently shrinking "last N days" toward minutes.
+    url += `?since=${since.toISOString()}`;
   }
   return fetch(url)
     .then((r) => r.json())
     .then(renderReports);
+}
+
+function closeDetailPanel() {
+  detailPanel.classList.remove('open');
 }
 
 function timelineDays() {
@@ -86,11 +97,10 @@ timelineSlider.addEventListener('input', () => {
   fetchReports(days >= 365 ? null : days);
 });
 
-document.getElementById('detail-panel-close').addEventListener('click', () => {
-  detailPanel.classList.remove('open');
-});
+document.getElementById('detail-panel-close').addEventListener('click', closeDetailPanel);
 
 reportsLayer.addTo(window.mywaterMap);
 fetchReports(timelineDays());
 
 window.mywaterRefreshReports = () => fetchReports(timelineDays());
+window.mywaterCloseDetailPanel = closeDetailPanel;
