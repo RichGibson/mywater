@@ -811,6 +811,17 @@ Modify `projects/mywater/templates/index.html` — add this inside `{% block con
 </div>
 ```
 
+Also add the script tag that loads this task's JS file — modify `projects/mywater/templates/index.html`'s `{% block scripts %}` to add `report-form.js` after `map.js`, following the same pattern Task 2 used to wire in `map.js`:
+```html
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/map.js"></script>
+<script src="/static/report-form.js"></script>
+{% endblock %}
+```
+
+(Caught during implementation, 2026-08-24: this step was originally missing from the plan — without it, `report-form.js` never loads and the whole feature silently never runs. Corrected here for accuracy; the implementer independently caught and fixed this in the shipped code before this correction was made.)
+
 - [ ] **Step 2: Write report-form.js**
 
 `projects/mywater/static/report-form.js`:
@@ -957,7 +968,7 @@ window.mywaterOpenReportPanel = openReportPanel;
 window.mywaterShowMessage = showMessage;
 ```
 
-Note on `stripEmptyOptionalFields`: the HTML `<select>` elements for `taste`/`smell`/`color`/`pressure`/`event_subtype` include a blank `""` option so users can leave a field unanswered — but `FormData` sends that as the literal string `""`, and FastAPI's `Optional[str] = Form(None)` parameter only defaults to `None` when the field is *absent* from the request, not when it's present-but-empty. Sending `taste=""` would reach `ReportCreate`'s validator as `""`, which fails the `VALID_QUALITY_RATINGS` check (empty string isn't `"good"`/`"off"`/`"bad"`) with a 422 — even though the user correctly left it blank. Deleting empty-string fields from the `FormData` before sending fixes this. The report-type-specific deletions (dropping quality fields from an event submission and vice versa) exist for the same reason: the hidden `<div class="field-quality">`/`<div class="field-event">` sections still have form elements in the DOM even when hidden via CSS, and hidden form elements are still included in `FormData`.
+Note on `stripEmptyOptionalFields` (corrected 2026-08-24 — see below): the HTML `<select>` elements for `taste`/`smell`/`color`/`pressure`/`event_subtype` include a blank `""` option so users can leave a field unanswered — `FormData` sends that as the literal string `""`. The empty-string deletions in this function are defensive hygiene, not strictly required for correctness in this stack: verified during Task 3's implementation and independently re-verified during its review that FastAPI 0.141.1 / Pydantic 2.13.4 already coerce an empty-string form value to `None` for an `Optional[str] = Form(None)` / `Optional[int] = Form(None)` parameter before it reaches `ReportCreate`'s validators, so leaving `taste=""` unstripped would still work correctly. What genuinely IS load-bearing (confirmed by testing the negative case): the report-type-specific deletions (dropping `event_subtype`/`ongoing` from a quality submission and `taste`/`smell`/`color`/`pressure` from an event submission) — the hidden `<div class="field-quality">`/`<div class="field-event">` sections still have form elements in the DOM even when hidden via CSS, hidden form elements are still included in `FormData`, and `event_subtype`'s `<select>` has no blank option (its default is the non-empty string `"main_break"`), so an unstripped quality submission would send a real `event_subtype` value and get correctly rejected by `models.py`'s "quality reports must not set event_subtype or ongoing" rule.
 
 - [ ] **Step 3: Add side panel styling (desktop slide-out, mobile bottom sheet)**
 
