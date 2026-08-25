@@ -91,10 +91,21 @@
     <button type="submit">Submit report</button>
   </form>
 </div>
+
+<div id="timeline">
+  <label for="timeline-slider" id="timeline-label">Last 90 days</label>
+  <input type="range" id="timeline-slider" min="1" max="365" value="90" />
+</div>
+
+<div id="detail-panel">
+  <button id="detail-panel-close" type="button" aria-label="Close">&times;</button>
+  <div id="detail-content"></div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/static/map.js"></script>
+<script src="/static/reports.js"></script>
 <script src="/static/report-form.js"></script>
 {% endblock %}
