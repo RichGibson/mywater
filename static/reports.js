@@ -46,6 +46,7 @@ function reportDetailHtml(properties) {
 }
 
 function renderReports(geojson) {
+  if (!geojson || !Array.isArray(geojson.features)) return;
   reportsLayer.clearLayers();
   geojson.features.forEach((feature) => {
     if (!feature.geometry) return;
@@ -80,7 +81,13 @@ function fetchReports(sinceDays) {
   }
   return fetch(url)
     .then((r) => r.json())
-    .then(renderReports);
+    .then(renderReports)
+    .catch((err) => {
+      console.error(err);
+      if (window.mywaterShowMessage) {
+        window.mywaterShowMessage("Couldn't load the map data. Try refreshing the page.");
+      }
+    });
 }
 
 function closeDetailPanel() {

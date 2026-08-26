@@ -84,9 +84,16 @@ function setMode(mode) {
   document.getElementById('mode-obscure').classList.toggle('active', mode === 'obscure');
 }
 
-Promise.all([loadParcelsLayer(), loadClustersLayer()]).then(() => {
-  setMode('exact');
-});
+Promise.all([loadParcelsLayer(), loadClustersLayer()])
+  .then(() => {
+    setMode('exact');
+  })
+  .catch((err) => {
+    console.error(err);
+    if (window.mywaterShowMessage) {
+      window.mywaterShowMessage("Couldn't load the map data. Try refreshing the page.");
+    }
+  });
 
 document.getElementById('mode-exact').addEventListener('click', () => setMode('exact'));
 document.getElementById('mode-obscure').addEventListener('click', () => setMode('obscure'));
