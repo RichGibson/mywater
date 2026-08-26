@@ -53,6 +53,7 @@ function openReportPanel(selection) {
 
 function closeReportPanel() {
   panel.classList.remove('open');
+  form.reset();
 }
 
 function validateForm(formData) {
