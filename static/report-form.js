@@ -37,6 +37,17 @@ function openReportPanel(selection) {
     : `Reporting for the area near ${selection.streetName} (anonymized)`;
   document.getElementById('report-panel-location').textContent = label;
   updateFieldVisibility();
+
+  const photoField = document.querySelector('.field-photo');
+  const photoNote = document.getElementById('field-photo-note');
+  if (selection.type === 'cluster') {
+    photoField.style.display = 'none';
+    if (photoNote) photoNote.style.display = '';
+  } else {
+    photoField.style.display = '';
+    if (photoNote) photoNote.style.display = 'none';
+  }
+
   panel.classList.add('open');
 }
 
@@ -90,6 +101,10 @@ function stripEmptyOptionalFields(formData) {
   });
   const photo = formData.get('photo');
   if (photo && photo.size === 0) formData.delete('photo');
+  // Defense in depth: the photo field is hidden for obscured reports, but a
+  // stale selection from before switching to obscure mode could still leave
+  // a value in the FormData, so drop it explicitly for obscured submissions.
+  if (formData.get('obscured') === 'true') formData.delete('photo');
   if (formData.get('report_type') === 'quality') {
     formData.delete('event_subtype');
     formData.delete('ongoing');

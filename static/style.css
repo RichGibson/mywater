@@ -294,6 +294,14 @@ body.map-page main {
   cursor: not-allowed;
 }
 
+.field-photo-note {
+  display: none;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 12px 0 0;
+  max-width: none;
+}
+
 #report-panel-error {
   color: #f87171;
   font-size: 0.8rem;

@@ -83,8 +83,13 @@
     <label for="field-free-text">Description (optional, 500 characters max)</label>
     <textarea id="field-free-text" name="free_text" maxlength="500"></textarea>
 
-    <label for="field-photo">Photo (optional, JPEG/PNG/HEIC, up to 5MB)</label>
-    <input type="file" id="field-photo" name="photo" accept="image/jpeg,image/png,image/heic" />
+    <div class="field-photo">
+      <label for="field-photo">Photo (optional, JPEG/PNG/HEIC, up to 5MB)</label>
+      <input type="file" id="field-photo" name="photo" accept="image/jpeg,image/png,image/heic" />
+    </div>
+    <p id="field-photo-note" class="field-photo-note">
+      Photos aren't offered for anonymized reports, since they can carry hidden location data.
+    </p>
 
     <div id="report-panel-error"></div>
 
