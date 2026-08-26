@@ -59,6 +59,12 @@ function renderReports(geojson) {
       weight: 1,
     });
     marker.on('click', () => {
+      if (window.mywaterReportFormIsDirty && window.mywaterReportFormIsDirty()) {
+        if (window.mywaterShowMessage) {
+          window.mywaterShowMessage('Finish or close your report before viewing another.');
+        }
+        return;
+      }
       if (window.mywaterCloseReportPanel) window.mywaterCloseReportPanel();
       detailContent.innerHTML = reportDetailHtml(feature.properties);
       detailPanel.classList.add('open');

@@ -155,3 +155,11 @@ document.getElementById('report-panel-close').addEventListener('click', closeRep
 window.mywaterOpenReportPanel = openReportPanel;
 window.mywaterShowMessage = showMessage;
 window.mywaterCloseReportPanel = closeReportPanel;
+window.mywaterReportFormIsDirty = () => {
+  const fd = new FormData(form);
+  return (
+    Boolean((fd.get('free_text') || '').trim()) ||
+    Boolean(fd.get('photo') && fd.get('photo').size > 0) ||
+    ['taste', 'smell', 'color', 'pressure'].some((k) => fd.get(k))
+  );
+};
