@@ -142,10 +142,10 @@ body.map-page main {
 
 #map-message {
   position: absolute;
-  bottom: 12px;
+  top: 70px;
   left: 50%;
   transform: translate(-50%, 0);
-  z-index: 1000;
+  z-index: 1200;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -217,7 +217,8 @@ body.map-page main {
   background: var(--surface);
   border-left: 1px solid var(--border);
   transform: translateX(100%);
-  transition: transform 0.2s ease-out;
+  visibility: hidden;
+  transition: transform 0.2s ease-out, visibility 0.2s;
   z-index: 1100;
   overflow-y: auto;
   padding: 16px;
@@ -225,6 +226,7 @@ body.map-page main {
 
 #report-panel.open {
   transform: translateX(0);
+  visibility: visible;
 }
 
 #report-panel-header {
@@ -350,7 +352,8 @@ body.map-page main {
   background: var(--surface);
   border-left: 1px solid var(--border);
   transform: translateX(100%);
-  transition: transform 0.2s ease-out;
+  visibility: hidden;
+  transition: transform 0.2s ease-out, visibility 0.2s;
   z-index: 1100;
   overflow-y: auto;
   padding: 16px;
@@ -358,6 +361,7 @@ body.map-page main {
 
 #detail-panel.open {
   transform: translateX(0);
+  visibility: visible;
 }
 
 #detail-panel-close {

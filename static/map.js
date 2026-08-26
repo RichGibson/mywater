@@ -1,14 +1,13 @@
 const MYWATER_CENTER = [39.02, -122.62];
 const MYWATER_ZOOM = 13;
 
-const map = L.map('map').setView(MYWATER_CENTER, MYWATER_ZOOM);
+const map = L.map('map', { zoomControl: false }).setView(MYWATER_CENTER, MYWATER_ZOOM);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 }).addTo(map);
 
-let currentMode = 'exact'; // 'exact' | 'obscure'
 let parcelsLayer = null;
 let clustersLayer = null;
 let selectedFeature = null;
@@ -76,7 +75,6 @@ function loadClustersLayer() {
 }
 
 function setMode(mode) {
-  currentMode = mode;
   if (parcelsLayer && map.hasLayer(parcelsLayer)) map.removeLayer(parcelsLayer);
   if (clustersLayer && map.hasLayer(clustersLayer)) map.removeLayer(clustersLayer);
   if (mode === 'exact' && parcelsLayer) parcelsLayer.addTo(map);
@@ -94,4 +92,3 @@ document.getElementById('mode-exact').addEventListener('click', () => setMode('e
 document.getElementById('mode-obscure').addEventListener('click', () => setMode('obscure'));
 
 window.mywaterMap = map;
-window.mywaterGetSelectedFeature = () => selectedFeature;
