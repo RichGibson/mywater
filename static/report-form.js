@@ -92,10 +92,13 @@ function validateForm(formData) {
 
 function stripEmptyOptionalFields(formData) {
   // Empty <select> values ("No opinion") and an empty file input still show
-  // up as empty-string/empty-file FormData entries; the backend's Pydantic
-  // model treats an empty string as "set to empty string", not "unset", for
-  // fields like taste/smell/color/pressure/event_subtype — so send them only
-  // when the user actually picked something.
+  // up as empty-string/empty-file FormData entries. FastAPI actually coerces
+  // an empty-string `Optional[str] = Form(None)` field to None on its own, so
+  // deleting these here is defensive hygiene rather than strictly necessary,
+  // harmless either way. The deletions below (report-type-specific fields)
+  // ARE load-bearing, though: the `event_subtype` <select> has no blank
+  // option, so an event submission's real (non-empty) value would otherwise
+  // reach the backend on a quality report and vice versa.
   ['taste', 'smell', 'color', 'pressure', 'event_subtype', 'free_text'].forEach((key) => {
     if (formData.get(key) === '') formData.delete(key);
   });
