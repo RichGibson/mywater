@@ -4,3 +4,4 @@ mywater.db
 mywater_app.db
 .venv/
 .env
+venv/
