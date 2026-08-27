@@ -138,6 +138,11 @@ Promise.all([loadParcelsLayer(), loadClustersLayer()])
 
 map.on('zoomend', updateAddressLabelVisibility);
 
+const coordDisplay = document.getElementById('coord-display');
+map.on('mousemove', (e) => {
+  coordDisplay.textContent = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+});
+
 document.getElementById('mode-exact').addEventListener('click', () => setMode('exact'));
 document.getElementById('mode-obscure').addEventListener('click', () => setMode('obscure'));
 

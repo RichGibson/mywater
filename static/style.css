@@ -398,6 +398,20 @@ body.map-page main {
   }
 }
 
+#coord-display {
+  position: absolute;
+  bottom: 92px;
+  left: 12px;
+  z-index: 1000;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-family: monospace;
+  color: var(--muted);
+}
+
 #timeline {
   position: absolute;
   bottom: 12px;
