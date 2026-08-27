@@ -33,7 +33,7 @@ function openReportPanel(selection) {
   document.getElementById('field-cluster-id').value = selection.type === 'cluster' ? selection.id : '';
   document.getElementById('field-obscured').value = selection.type === 'cluster' ? 'true' : 'false';
   const label = selection.type === 'parcel'
-    ? `Reporting for parcel ${selection.apn}`
+    ? `Reporting for parcel ${selection.street_address} APN ${selection.apn}`
     : `Reporting for the area near ${selection.streetName} (anonymized)`;
   document.getElementById('report-panel-location').textContent = label;
   updateFieldVisibility();

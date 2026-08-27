@@ -3,3 +3,4 @@ __pycache__/
 mywater.db
 mywater_app.db
 .venv/
+.env

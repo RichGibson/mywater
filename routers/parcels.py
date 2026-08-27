@@ -10,11 +10,11 @@ router = APIRouter()
 @router.get("/parcels.geojson")
 def parcels_geojson(conn=Depends(get_db)):
     rows = conn.execute(
-        "SELECT id, apn, situsstr, cluster_id, centroid_lat, centroid_lng, AsGeoJSON(geometry) "
+        "SELECT id, apn,  situsstr,concat(situsnum,' ',situsstr) as street_address, cluster_id, centroid_lat, centroid_lng, AsGeoJSON(geometry) "
         "FROM parcels_db.parcels"
     ).fetchall()
     features = []
-    for pid, apn, situsstr, cluster_id, lat, lng, geom_json in rows:
+    for pid, apn, situsstr, street_address, cluster_id, lat, lng, geom_json in rows:
         features.append(
             {
                 "type": "Feature",
@@ -23,6 +23,7 @@ def parcels_geojson(conn=Depends(get_db)):
                     "id": pid,
                     "apn": apn,
                     "situsstr": situsstr,
+                    "street_address": street_address,
                     "cluster_id": cluster_id,
                     "centroid_lat": lat,
                     "centroid_lng": lng,

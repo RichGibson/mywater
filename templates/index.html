@@ -13,6 +13,20 @@
   <button id="mode-exact" class="mode-button active">Show my location</button>
   <button id="mode-obscure" class="mode-button">Obscure my location</button>
 </div>
+<div id="map-controls">
+  <label class="map-control-item">
+    <input type="checkbox" id="control-boundaries" data-noun="parcel/cluster boundaries" checked />
+    <span id="control-boundaries-label">Hide parcel/cluster boundaries</span>
+  </label>
+  <label class="map-control-item">
+    <input type="checkbox" id="control-show-events" data-noun="water events" checked />
+    <span id="control-show-events-label">Hide water events</span>
+  </label>
+  <label class="map-control-item">
+    <input type="checkbox" id="control-show-quality" data-noun="quality reports" checked />
+    <span id="control-show-quality-label">Hide quality reports</span>
+  </label>
+</div>
 <div id="map"></div>
 <div id="map-message"></div>
 <div id="legend">

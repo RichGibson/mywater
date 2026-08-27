@@ -1,8 +1,15 @@
+const REPORTS_PANE = 'reports-pane';
+window.mywaterMap.createPane(REPORTS_PANE).style.zIndex = 450; // above overlayPane (400), where parcels/clusters render
+
 const reportsLayer = L.layerGroup();
 const detailPanel = document.getElementById('detail-panel');
 const detailContent = document.getElementById('detail-content');
 const timelineSlider = document.getElementById('timeline-slider');
 const timelineLabel = document.getElementById('timeline-label');
+const showEventsCheckbox = document.getElementById('control-show-events');
+const showQualityCheckbox = document.getElementById('control-show-quality');
+
+let lastGeojson = null;
 
 function markerColor(properties) {
   return properties.report_type === 'event' ? '#f87171' : '#38bdf8';
@@ -46,12 +53,16 @@ function reportDetailHtml(properties) {
 }
 
 function renderReports(geojson) {
-  if (!geojson || !Array.isArray(geojson.features)) return;
+  if (geojson) lastGeojson = geojson;
+  if (!lastGeojson || !Array.isArray(lastGeojson.features)) return;
   reportsLayer.clearLayers();
-  geojson.features.forEach((feature) => {
+  lastGeojson.features.forEach((feature) => {
     if (!feature.geometry) return;
+    if (feature.properties.report_type === 'event' && !showEventsCheckbox.checked) return;
+    if (feature.properties.report_type === 'quality' && !showQualityCheckbox.checked) return;
     const [lng, lat] = feature.geometry.coordinates;
     const marker = L.circleMarker([lat, lng], {
+      pane: REPORTS_PANE,
       radius: 8,
       color: markerColor(feature.properties),
       fillColor: markerColor(feature.properties),
@@ -111,6 +122,15 @@ timelineSlider.addEventListener('input', () => {
 });
 
 document.getElementById('detail-panel-close').addEventListener('click', closeDetailPanel);
+
+showEventsCheckbox.addEventListener('change', () => {
+  renderReports(null);
+  window.mywaterUpdateControlLabel(showEventsCheckbox);
+});
+showQualityCheckbox.addEventListener('change', () => {
+  renderReports(null);
+  window.mywaterUpdateControlLabel(showQualityCheckbox);
+});
 
 reportsLayer.addTo(window.mywaterMap);
 fetchReports(timelineDays());

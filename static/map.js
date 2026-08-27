@@ -1,5 +1,9 @@
 const MYWATER_CENTER = [39.02, -122.62];
 const MYWATER_ZOOM = 13;
+const ADDRESS_LABEL_MIN_ZOOM = 15;
+// Disabled: per-parcel tooltips are too slow with the live GeoJSON layer.
+// Re-enable once addresses are baked into a pre-rendered tile set instead.
+const ADDRESS_LABELS_ENABLED = false;
 
 const map = L.map('map', { zoomControl: false }).setView(MYWATER_CENTER, MYWATER_ZOOM);
 
@@ -11,6 +15,8 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 let parcelsLayer = null;
 let clustersLayer = null;
 let selectedFeature = null;
+let currentMode = 'exact';
+let boundariesVisible = true;
 
 function parcelStyle() {
   return { color: '#38bdf8', weight: 1, fillOpacity: 0.05 };
@@ -28,7 +34,12 @@ function clusterStyle(feature) {
 
 function onParcelClick(e) {
   const feature = e.target.feature;
-  selectedFeature = { type: 'parcel', id: feature.properties.id, apn: feature.properties.apn };
+  selectedFeature = {
+    type: 'parcel',
+    id: feature.properties.id,
+    apn: feature.properties.apn,
+    street_address: feature.properties.street_address,
+  };
   window.mywaterOpenReportPanel(selectedFeature);
 }
 
@@ -48,6 +59,12 @@ function onClusterClick(e) {
   window.mywaterOpenReportPanel(selectedFeature);
 }
 
+function updateAddressLabelVisibility() {
+  if (!ADDRESS_LABELS_ENABLED) return;
+  const show = map.getZoom() >= ADDRESS_LABEL_MIN_ZOOM;
+  map.getContainer().classList.toggle('hide-address-labels', !show);
+}
+
 function loadParcelsLayer() {
   return fetch('/api/parcels.geojson')
     .then((r) => r.json())
@@ -56,6 +73,13 @@ function loadParcelsLayer() {
         style: parcelStyle,
         onEachFeature: (feature, layer) => {
           layer.on('click', onParcelClick);
+          if (ADDRESS_LABELS_ENABLED && feature.properties.street_address) {
+            layer.bindTooltip(feature.properties.street_address, {
+              permanent: true,
+              direction: 'center',
+              className: 'address-label',
+            });
+          }
         },
       });
     });
@@ -74,11 +98,27 @@ function loadClustersLayer() {
     });
 }
 
+function updateControlLabel(checkbox) {
+  const span = document.getElementById(checkbox.id + '-label');
+  if (span) span.textContent = (checkbox.checked ? 'Hide ' : 'Show ') + checkbox.dataset.noun;
+}
+window.mywaterUpdateControlLabel = updateControlLabel;
+
+function applyBoundariesVisibility() {
+  const layer = currentMode === 'exact' ? parcelsLayer : clustersLayer;
+  if (!layer) return;
+  if (boundariesVisible) {
+    if (!map.hasLayer(layer)) layer.addTo(map);
+  } else if (map.hasLayer(layer)) {
+    map.removeLayer(layer);
+  }
+}
+
 function setMode(mode) {
+  currentMode = mode;
   if (parcelsLayer && map.hasLayer(parcelsLayer)) map.removeLayer(parcelsLayer);
   if (clustersLayer && map.hasLayer(clustersLayer)) map.removeLayer(clustersLayer);
-  if (mode === 'exact' && parcelsLayer) parcelsLayer.addTo(map);
-  if (mode === 'obscure' && clustersLayer) clustersLayer.addTo(map);
+  applyBoundariesVisibility();
 
   document.getElementById('mode-exact').classList.toggle('active', mode === 'exact');
   document.getElementById('mode-obscure').classList.toggle('active', mode === 'obscure');
@@ -87,6 +127,7 @@ function setMode(mode) {
 Promise.all([loadParcelsLayer(), loadClustersLayer()])
   .then(() => {
     setMode('exact');
+    updateAddressLabelVisibility();
   })
   .catch((err) => {
     console.error(err);
@@ -95,7 +136,15 @@ Promise.all([loadParcelsLayer(), loadClustersLayer()])
     }
   });
 
+map.on('zoomend', updateAddressLabelVisibility);
+
 document.getElementById('mode-exact').addEventListener('click', () => setMode('exact'));
 document.getElementById('mode-obscure').addEventListener('click', () => setMode('obscure'));
+
+document.getElementById('control-boundaries').addEventListener('change', (e) => {
+  boundariesVisible = e.target.checked;
+  applyBoundariesVisibility();
+  updateControlLabel(e.target);
+});
 
 window.mywaterMap = map;
