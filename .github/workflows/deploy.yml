@@ -1,0 +1,16 @@
+name: Deploy to Hetzner
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger deploy over SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.MYWATER_DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o BatchMode=yes root@95.216.142.119 deploy
